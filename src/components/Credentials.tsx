@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Settings } from '../types'
 import { formatRelative } from '../lib/format'
 import { lastRound, lowestQuota, verdictTone, type CredentialView } from '../lib/derive'
-import { Chip, HoverCard, Icon, PlanBadge, QuotaMeter, SecretName, useSelection } from './ui'
+import { Chip, HoverCard, Icon, PlanBadge, PlanMark, QuotaMeter, SecretName, useSelection } from './ui'
 import { StatusLights } from './StatusLights'
 
 const VERDICT_TEXT = { normal: '正常', downshift: '降档', uncertain: '不确定', untested: '未检测' } as const
@@ -15,13 +15,6 @@ export interface CredentialRuntime {
   onRetest: (credentialId: string) => void
   onOpenDetail: (targetId: string, roundId?: string | null) => void
   onResync: (credentialId: string) => void
-}
-
-function initials(name: string): string {
-  const at = name.indexOf('@')
-  const local = at > 0 ? name.slice(0, at) : name
-  const cleaned = local.replace(/[^a-zA-Z0-9]/g, '')
-  return (cleaned.slice(0, 2) || 'CX').toUpperCase()
 }
 
 function stop(e: { stopPropagation: () => void }) {
@@ -242,13 +235,10 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
             </div>
 
             <div className="cred-ident">
-              <span className="avatar avatar-sm" aria-hidden="true">
-                {initials(view.credential.name)}
-              </span>
+              <PlanMark plan={view.credential.plan} size="sm" />
               <div className="cred-ident-main">
                 <div className="cred-name-line">
                   <SecretName name={view.credential.name} className="cred-name" />
-                  <PlanBadge plan={view.credential.plan} />
                   {view.credential.availability === 'busy' && (
                     <HoverCard
                       content={`当前有 ${view.credential.busySessions} 个会话在运行；巡检会在同一任务内等它空闲后继续。`}
@@ -382,13 +372,10 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
             title={cardNote(view)}
           >
             <div className="tile-head">
-              <span className="tile-avatar" aria-hidden="true">
-                {initials(view.credential.name)}
-              </span>
+              <PlanMark plan={view.credential.plan} />
               <div className="tile-ident">
                 <div className="tile-name-line">
                   <SecretName name={view.credential.name} className="tile-name" />
-                  <PlanBadge plan={view.credential.plan} />
                   {busy && (
                     <HoverCard content={`正在检测该凭证，结论会作用于它的全部模型`}>
                       <Chip tone="uncertain" dot>
@@ -409,7 +396,6 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
                   </span>
                 </div>
               </div>
-              <VerdictPill verdict={view.verdict} big />
               {selected && (
                 <span className="tile-check" aria-label="已选择">
                   <Icon.Check />
@@ -442,6 +428,7 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
             </div>
 
             <div className="tile-foot">
+              <VerdictPill verdict={view.verdict} />
               <SyncBadge view={view} onResync={runtime.onResync} />
               <Actions view={view} runtime={runtime} compact />
             </div>
@@ -481,7 +468,6 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
     >
       <div className="pool-card-top">
         <SecretName name={view.credential.name} className="pool-name" />
-        <PlanBadge plan={view.credential.plan} />
         {busy && (
           <Chip tone="uncertain" dot>
             检测中
@@ -492,7 +478,8 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
             <Icon.Check />
           </span>
         )}
-        <VerdictPill verdict={view.verdict} />
+        {/* The pool header carries the tier badge itself (top-right), so no extra avatar. */}
+        <PlanBadge plan={view.credential.plan} />
       </div>
 
       <div className="pool-card-lights">

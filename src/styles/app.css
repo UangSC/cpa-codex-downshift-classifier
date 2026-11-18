@@ -4247,3 +4247,576 @@ button {
 .pool-card-top .tile-check {
   margin-left: 0;
 }
+/* ==========================================================================
+   Glassmorphism refresh: pastel canvas, frosted cards, tier marks
+   ========================================================================== */
+
+body {
+  background-attachment: fixed, fixed, fixed, fixed;
+  background-size: cover;
+}
+
+/* The canvas carries the blue→mint wash; keep it fixed so scrolling feels calm. */
+.app {
+  min-height: 100%;
+}
+
+.topbar {
+  background: color-mix(in srgb, var(--glass-strong) 92%, transparent);
+  backdrop-filter: saturate(170%) blur(16px);
+  -webkit-backdrop-filter: saturate(170%) blur(16px);
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-border) 80%, var(--border));
+}
+
+/* --------------------------------------------------------- account mark */
+
+.acct-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 9px;
+  color: #0f172a;
+  border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.acct-mark svg {
+  width: 74%;
+  height: 74%;
+  display: block;
+}
+
+.acct-mark.is-md {
+  width: 34px;
+  height: 34px;
+}
+
+.acct-mark.is-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.acct-mark.tier-tfree {
+  color: #4b5a6b;
+  background: linear-gradient(150deg, #f6f8fb, #e2e8f0);
+}
+
+.acct-mark.tier-tplus {
+  color: #fff;
+  background: linear-gradient(150deg, #5aa8ff, #2563eb 62%, #1e40af);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.acct-mark.tier-tpro {
+  color: #fff;
+  background: linear-gradient(150deg, #b69bff, #7c3aed 58%, #4c1d95);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 12px rgba(124, 58, 237, 0.35);
+}
+
+.acct-mark.tier-tteam {
+  color: #fff;
+  background: linear-gradient(150deg, #4fe3c6, #0d9488 60%, #0f766e);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.acct-mark.tier-t100 {
+  color: #4a2f00;
+  background: linear-gradient(125deg, #fff6cc, #fbbf24 34%, #f59e0b 52%, #fde68a 66%, #f59e0b 88%);
+  background-size: 200% 100%;
+  border-color: rgba(180, 120, 0, 0.4);
+  animation: planShine 3.6s linear infinite;
+}
+
+.acct-mark.tier-t200 {
+  color: #fff;
+  background: linear-gradient(140deg, #a5f3fc, #0891b2 42%, #155e75 100%);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 12px rgba(8, 145, 178, 0.35);
+}
+
+.acct-mark.tier-t500 {
+  color: #fff;
+  background: linear-gradient(140deg, #fdba74, #ea580c 40%, #9a3412 72%, #7c2d12 100%);
+  border-color: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 14px rgba(234, 88, 12, 0.4);
+}
+
+.acct-mark.tier-tent {
+  color: #e2e8f0;
+  background: linear-gradient(150deg, #475569, #1e293b 68%, #0f172a);
+}
+
+[data-theme='dark'] .acct-mark.tier-tfree {
+  color: #cbd5e1;
+  background: linear-gradient(150deg, #3a4553, #1e293b);
+}
+
+/* ------------------------------------------------------- tier badge tiers */
+
+.plan-badge.plan-200pro {
+  color: #fff;
+  background: linear-gradient(135deg, #7dd3fc 0%, #0891b2 48%, #0e7490 100%);
+  border-color: #0e7490;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 0 10px rgba(8, 145, 178, 0.35);
+}
+
+.plan-badge.plan-500pro {
+  color: #fff;
+  background: linear-gradient(120deg, #fecaca 0%, #f97316 34%, #dc2626 62%, #9a3412 100%);
+  background-size: 200% 100%;
+  border-color: #c2410c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 12px rgba(249, 115, 22, 0.42);
+  animation: planShine 4.2s linear infinite;
+}
+
+/* --------------------------------------------------------------- glass UI */
+
+.toolbar,
+.stat,
+.cred-table,
+.cred-tile,
+.pool,
+.pool-card,
+.panel,
+.history-item,
+.run-item,
+.task {
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+}
+
+.toolbar {
+  background: var(--glass);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 75%, var(--border));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.stat {
+  background: var(--glass-strong);
+  border-color: color-mix(in srgb, var(--glass-border) 78%, var(--border));
+}
+
+.cred-table {
+  background: var(--glass);
+  border-color: color-mix(in srgb, var(--glass-border) 80%, var(--border));
+  box-shadow: 0 18px 40px -30px rgba(30, 64, 90, 0.4);
+}
+
+.cred-table-head {
+  background: color-mix(in srgb, var(--glass-strong) 88%, transparent);
+}
+
+.cred-row {
+  background: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+.cred-row:hover {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.cred-tile {
+  background:
+    radial-gradient(150px 90px at 100% 0%, color-mix(in srgb, var(--tone-soft, transparent) 92%, transparent), transparent 72%),
+    var(--glass-strong);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, var(--border));
+  box-shadow: 0 20px 44px -32px rgba(30, 64, 90, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.cred-tile:hover {
+  box-shadow: 0 26px 52px -30px rgba(30, 64, 90, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.pool {
+  background: color-mix(in srgb, var(--glass) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 70%, var(--border));
+  box-shadow: 0 20px 48px -34px rgba(30, 64, 90, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.pool-card {
+  background:
+    radial-gradient(120px 70px at 100% 0%, color-mix(in srgb, var(--tone-soft, transparent) 90%, transparent), transparent 74%),
+    var(--glass-strong);
+  border: 1px solid color-mix(in srgb, var(--glass-border) 72%, var(--border));
+  box-shadow: 0 10px 26px -20px rgba(30, 64, 90, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.pool-card:hover {
+  box-shadow: 0 16px 34px -20px rgba(30, 64, 90, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.panel,
+.history-item {
+  background: var(--glass-strong);
+}
+
+/* ------------------------------------------------- card footer status slot */
+
+/* The verdict sits at the bottom-left, where a pending-sync action used to be. */
+.cred-tile .tile-foot {
+  gap: 8px;
+}
+
+.cred-tile .tile-foot .verdict {
+  flex: none;
+}
+
+.pool-card-top {
+  gap: 6px;
+}
+
+.pool-card-top .pool-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.pool-card-top .tile-check {
+  margin-left: auto;
+}
+
+/* Dark theme keeps the same glass structure, only cooler. */
+[data-theme='dark'] .toolbar,
+[data-theme='dark'] .stat,
+[data-theme='dark'] .cred-table,
+[data-theme='dark'] .cred-tile,
+[data-theme='dark'] .pool,
+[data-theme='dark'] .pool-card,
+[data-theme='dark'] .panel,
+[data-theme='dark'] .history-item {
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+}
+
+[data-theme='dark'] .cred-tile,
+[data-theme='dark'] .pool-card {
+  box-shadow: 0 20px 44px -30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* ------------------------------------------ glass polish + card foot status */
+
+/* Stronger frost: a visible sheen over the pastel canvas rather than a flat panel. */
+.cred-tile::after,
+.pool-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.06) 38%, transparent 62%);
+  opacity: 0.9;
+}
+
+[data-theme='dark'] .cred-tile::after,
+[data-theme='dark'] .pool-card::after {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.1), transparent 46%);
+}
+
+.cred-tile > *,
+.pool-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Card: verdict now lives bottom-left in the footer, next to the pending-sync action. */
+.cred-tile .tile-foot {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.cred-tile .tile-foot .verdict {
+  order: 0;
+}
+
+.cred-tile .tile-foot .sync-badge {
+  order: 1;
+}
+
+.cred-tile .tile-foot .cred-actions {
+  order: 2;
+  margin-left: auto;
+}
+
+/* Pools: the header keeps only name + plan badge, no verdict chip. */
+.pool-card-top .plan-badge {
+  flex: none;
+}
+
+.pool-card-top .verdict {
+  display: none;
+}
+
+/* List: account mark replaces the letter avatar, tinted by tier. */
+.cred-ident .acct-mark {
+  margin-top: 1px;
+}
+
+/* Softer section surfaces on the pastel canvas. */
+.page-head .sub,
+.scope-note {
+  color: color-mix(in srgb, var(--text-3) 92%, var(--text-2));
+}
+
+.stat-caption-hint {
+  opacity: 0.9;
+}
+/* ------------------------------------------- 500 PRO: black + gold (黑金) */
+
+.acct-mark.tier-t500 {
+  color: #f7c948;
+  background: radial-gradient(120% 120% at 30% 10%, #2a2f3a 0%, #14171d 52%, #05070a 100%);
+  border-color: rgba(247, 201, 72, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(247, 201, 72, 0.28),
+    0 0 14px rgba(247, 201, 72, 0.28);
+  animation: none;
+}
+
+.acct-mark.tier-t500 svg {
+  filter: drop-shadow(0 0 3px rgba(247, 201, 72, 0.45));
+}
+
+.plan-badge.plan-500pro {
+  color: #ffd35c;
+  background: radial-gradient(130% 140% at 24% 6%, #33383f 0%, #16191f 46%, #05070a 100%);
+  background-size: auto;
+  border-color: rgba(247, 201, 72, 0.6);
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(247, 201, 72, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 130, 0.32),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+    0 0 12px rgba(247, 201, 72, 0.3);
+  animation: none;
+}
+
+.plan-badge.plan-500pro .plan-glyph {
+  color: #ffd35c;
+  opacity: 1;
+}
+/* ==========================================================================
+   Tier plate avatar: the badge IS the avatar (fixed width, replaces letters)
+   ========================================================================== */
+
+.plan-mark {
+  display: inline-grid;
+  place-content: center;
+  justify-items: center;
+  flex: none;
+  width: 46px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-family: var(--font);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  text-transform: uppercase;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(15, 23, 42, 0.16);
+}
+
+.plan-mark.is-sm {
+  width: 42px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.plan-mark-text {
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.plan-mark.is-sm .plan-mark-text {
+  font-size: 11px;
+}
+
+.plan-mark-sub {
+  margin-top: 1px;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  opacity: 0.82;
+  line-height: 1;
+}
+
+/* Unknown plan: same plate size, neutral fill so widths still line up. */
+.plan-mark.plan-plain {
+  color: var(--text-2);
+  background: var(--surface-3);
+  border-color: var(--border);
+  font-weight: 640;
+  text-transform: none;
+  box-shadow: none;
+}
+
+.plan-mark.plan-free {
+  color: #405061;
+  background: linear-gradient(180deg, #f7f9fc, #e3e8ef);
+  border-color: #cbd5e1;
+}
+
+.plan-mark.plan-plus {
+  color: #fff;
+  background: linear-gradient(140deg, #5aa8ff, #2563eb 62%, #1d4ed8);
+  border-color: #1d4ed8;
+}
+
+.plan-mark.plan-pro {
+  color: #fff;
+  background: linear-gradient(140deg, #b69bff, #7c3aed 58%, #5b21b6);
+  border-color: #6d28d9;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 0 10px rgba(124, 58, 237, 0.32);
+}
+
+.plan-mark.plan-team {
+  color: #fff;
+  background: linear-gradient(140deg, #4fe3c6, #0d9488 62%, #0f766e);
+  border-color: #0f766e;
+}
+
+.plan-mark.plan-100pro {
+  color: #4a2f00;
+  background: linear-gradient(120deg, #fff6cc, #fbbf24 32%, #f59e0b 52%, #fde68a 66%, #f59e0b 88%);
+  background-size: 210% 100%;
+  border-color: #d97706;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 12px rgba(245, 158, 11, 0.42);
+  animation: planShine 3.8s linear infinite;
+}
+
+.plan-mark.plan-200pro {
+  color: #fff;
+  background: linear-gradient(140deg, #a5f3fc, #0891b2 46%, #155e75);
+  border-color: #0e7490;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(8, 145, 178, 0.32);
+}
+
+/* 500 PRO: black plate with bold gold type. */
+.plan-mark.plan-500pro {
+  color: #ffd35c;
+  background: radial-gradient(130% 140% at 26% 8%, #33383f 0%, #16191f 46%, #05070a 100%);
+  border-color: rgba(247, 201, 72, 0.62);
+  text-shadow: 0 0 8px rgba(247, 201, 72, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 130, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7),
+    0 0 12px rgba(247, 201, 72, 0.28);
+}
+
+.plan-mark.plan-enterprise {
+  color: #e2e8f0;
+  background: linear-gradient(140deg, #475569, #1e293b 68%, #0f172a);
+  border-color: #334155;
+}
+
+[data-theme='dark'] .plan-mark.plan-free {
+  color: #cbd5e1;
+  background: linear-gradient(180deg, #3a4553, #1e293b);
+  border-color: #475569;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-mark.plan-100pro {
+    animation: none;
+  }
+}
+
+/* Identity lines: mark first, then the name; the inline badge is gone. */
+.cred-ident {
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.tile-head {
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.cred-name-line,
+.tile-name-line {
+  min-height: 26px;
+}
+
+.cred-name,
+.tile-name {
+  line-height: 1.35;
+  padding-top: 1px;
+}
+
+.pool-card-top {
+  align-items: center;
+}
+
+.pool-card-top .plan-mark {
+  margin-right: 1px;
+}
+/* Pool header: tier badge top-right, no avatar plate in the name row. */
+.pool-card-top .plan-mark {
+  display: none;
+}
+
+.pool-card-top .plan-badge {
+  margin-left: auto;
+}
+
+.pool-card-top .tile-check {
+  margin-left: 0;
+}
+
+/* List / card rows: the tier plate is the avatar, so tighten the name column. */
+.cred-name-line .plan-badge,
+.tile-name-line .plan-badge {
+  display: none;
+}
+/* --------------------------------------------------------------------------
+   Identity row: the tier plate is centred against the whole identity block
+   (name + JSON sub-line), not pinned to the name baseline. Previously the
+   plate aligned to the top line, which left a visible gap under the mark.
+   -------------------------------------------------------------------------- */
+
+.cred-ident,
+.tile-head {
+  align-items: center;
+}
+
+.cred-ident .acct-mark,
+.cred-ident .plan-mark,
+.tile-head .plan-mark {
+  margin-top: 0;
+  align-self: center;
+}
+
+/* The forced line heights were only there to fake alignment; they are not needed now. */
+.cred-name-line,
+.tile-name-line {
+  min-height: 0;
+}
+
+.cred-name,
+.tile-name {
+  padding-top: 0;
+  line-height: 1.3;
+}
+
+.cred-ident-main,
+.tile-ident {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-height: 0;
+}
+
+.cred-meta,
+.tile-sub {
+  margin-top: 0;
+  line-height: 1.35;
+}
+
+/* Pools use the badge (not a plate) on the right, so keep that row centred too. */
+.pool-card-top {
+  align-items: center;
+}

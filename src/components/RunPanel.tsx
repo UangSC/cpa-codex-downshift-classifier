@@ -1,7 +1,7 @@
 import { useStore } from '../store/store'
 import { cancelTask } from '../store/engine'
 import { formatRelative } from '../lib/format'
-import { Chip, Drawer, Icon, PlanBadge, SecretName, useNow, type ChipTone } from './ui'
+import { Chip, Drawer, Icon, PlanMark, SecretName, useNow, type ChipTone } from './ui'
 import type { InspectionTask, RunItemState } from '../types'
 
 const STATE_LABEL: Record<RunItemState, string> = {
@@ -79,8 +79,8 @@ function TaskBlock({ task, now }: { task: InspectionTask; now: number }) {
               <span className={`run-dot is-${item.state}`} aria-hidden="true" />
               <div className="run-main">
                 <div className="run-name">
+                  {credential ? <PlanMark plan={credential.plan} size="sm" /> : null}
                   {credential ? <SecretName name={credential.name} /> : '未知凭证'}
-                  {credential && <PlanBadge plan={credential.plan} />}
                   <span className="run-model">{target?.model ?? item.targetId}</span>
                 </div>
                 {item.note && <div className="run-note">{item.note}</div>}

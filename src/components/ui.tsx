@@ -188,34 +188,54 @@ export function VerdictPill({ verdict }: { verdict: Verdict }) {
 
 /* ---------------------------------------------------------------- plans */
 
-const PLAN_BADGES: Record<string, { label: string; glyph?: string; cls: string }> = {
-  free: { label: 'FREE', cls: 'plan-free' },
-  plus: { label: 'PLUS', glyph: '+', cls: 'plan-plus' },
-  pro: { label: 'PRO', glyph: '◆', cls: 'plan-pro' },
-  team: { label: 'TEAM', glyph: '❖', cls: 'plan-team' },
-  '100pro': { label: '100 PRO', glyph: '★', cls: 'plan-100pro' },
-  enterprise: { label: 'ENT', glyph: '✦', cls: 'plan-enterprise' },
+/**
+ * Plan tiers. The badge itself is the account's avatar: a fixed-width plate so every row
+ * lines up, with the tier label in the centre and a per-tier colour treatment.
+ */
+const PLAN_TIERS: Record<string, { label: string; short: string; cls: string }> = {
+  free: { label: 'FREE', short: 'FREE', cls: 'plan-free' },
+  plus: { label: 'PLUS', short: 'PLUS', cls: 'plan-plus' },
+  pro: { label: 'PRO', short: 'PRO', cls: 'plan-pro' },
+  team: { label: 'TEAM', short: 'TEAM', cls: 'plan-team' },
+  '100pro': { label: '100 PRO', short: '100', cls: 'plan-100pro' },
+  '200pro': { label: '200 PRO', short: '200', cls: 'plan-200pro' },
+  '500pro': { label: '500 PRO', short: '500', cls: 'plan-500pro' },
+  enterprise: { label: 'ENT', short: 'ENT', cls: 'plan-enterprise' },
 }
 
-/** Small tier badge: each plan gets its own gradient / sparkle treatment. */
-export function PlanBadge({ plan }: { plan: string }) {
+function tierOf(plan: string) {
   const key = plan.trim().toLowerCase().replace(/\s+/g, '')
-  const meta = PLAN_BADGES[key]
-  if (!meta) {
-    return (
-      <span className="plan-badge plan-plain" title={`套餐：${plan}`}>
-        {plan}
-      </span>
-    )
+  if (PLAN_TIERS[key]) return { key, meta: PLAN_TIERS[key], known: true }
+  // Tolerate values such as "Pro 500" / "500Pro 年度" that still name a known tier.
+  const loose = Object.keys(PLAN_TIERS).find((k) => key.includes(k.replace('pro', '')) && key.includes('pro'))
+  if (loose) return { key: loose, meta: PLAN_TIERS[loose], known: true }
+  return {
+    key: 'unknown',
+    meta: { label: plan, short: plan.slice(0, 4).toUpperCase(), cls: 'plan-plain' },
+    known: false,
   }
+}
+
+/** Small tier badge; also used as the account avatar via `PlanMark`. */
+export function PlanBadge({ plan }: { plan: string }) {
+  const { meta, known } = tierOf(plan)
   return (
-    <span className={`plan-badge ${meta.cls}`} title={`套餐：${plan}`}>
-      {meta.glyph && (
-        <span className="plan-glyph" aria-hidden="true">
-          {meta.glyph}
-        </span>
-      )}
+    <span className={`plan-badge ${meta.cls}`} title={`套餐：${plan}`} data-known={known ? 'true' : 'false'}>
       {meta.label}
+    </span>
+  )
+}
+
+/**
+ * Account avatar: the plan tier, drawn as a fixed-size plate. Replaces the old letter
+ * avatar so a row reads "tier mark · account name" and every mark is the same width.
+ */
+export function PlanMark({ plan, size = 'md' }: { plan: string; size?: 'sm' | 'md' }) {
+  const { meta } = tierOf(plan)
+  return (
+    <span className={`plan-mark is-${size} ${meta.cls}`} title={`套餐：${plan}`}>
+      <span className="plan-mark-text">{meta.short}</span>
+      {meta.short !== meta.label && <span className="plan-mark-sub">PRO</span>}
     </span>
   )
 }

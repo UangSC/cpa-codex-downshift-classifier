@@ -3,7 +3,7 @@ import { useStore } from '../store/store'
 import { analyzePrefixes, buildModelName, DEFAULT_PREFIXES, stripGroupPrefix } from '../lib/prefix'
 import { failureRuleSentence, quotaSentence, retrySentence } from '../lib/rules'
 import { formatCountdown, formatDateTime } from '../lib/format'
-import { Chip, Icon, PlanBadge, SecretName, Segmented, Switch, useNow } from '../components/ui'
+import { Chip, Icon, PlanMark, SecretName, Segmented, Switch, useNow } from '../components/ui'
 import { applyScheduleChange } from '../store/scheduleActions'
 
 function Panel({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
@@ -482,7 +482,7 @@ export function SettingsView() {
                       <SecretName name={c.name} />
                     </span>
                     <span className="inline" style={{ gap: 6 }}>
-                      <PlanBadge plan={c.plan} />
+                      <PlanMark plan={c.plan} size="sm" />
                       <span style={{ color: blocked ? 'var(--danger)' : 'var(--text-3)' }}>
                         {lowest == null ? '额度未知' : `最低 ${lowest}%`}
                         {blocked ? ' · 跳过' : ''}

@@ -3,9 +3,21 @@
 :root {
   color-scheme: light;
 
-  --bg: #eef1f6;
-  --bg-accent: radial-gradient(1200px 420px at 50% -180px, rgba(75, 87, 214, 0.1), transparent 70%);
+  --bg: #eef4f5;
+  /*
+   * Fresh, easy-on-the-eyes canvas: soft blue in the bottom-left, soft mint/teal in the
+   * top-right. Both stops are pastel so long inspection sessions stay comfortable.
+   */
+  --bg-accent:
+    radial-gradient(900px 620px at 0% 100%, rgba(126, 176, 255, 0.42), transparent 62%),
+    radial-gradient(1100px 700px at 100% 0%, rgba(120, 226, 191, 0.4), transparent 60%),
+    radial-gradient(700px 420px at 62% 8%, rgba(190, 226, 255, 0.34), transparent 70%),
+    linear-gradient(140deg, #f2f8f9 0%, #eef4f7 46%, #eff7f3 100%);
   --surface: #ffffff;
+  /* Frosted panel fill used by cards / pools / header on the pastel canvas. */
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.72);
   --surface-2: #f7f9fc;
   --surface-3: #eceff5;
   --surface-inset: #f7f8fa;
