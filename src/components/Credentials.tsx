@@ -59,62 +59,84 @@ function GroupCell({
         : null
   const label = credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'
   const tone = credential.group ?? 'none'
+  const sync = view.attention.find((a) => a.kind === 'sync')
+  const tooltip = credential.group
+    ? `该凭证当前写入 ${prefix} 分组，${credential.models.length} 个模型统一使用这个前缀（例如 ${prefix}${settings.inspectionModel}）。`
+    : `尚未写入分组前缀，仍使用原始模型名。检测得出结论后会为该凭证的 ${credential.models.length} 个模型统一加上前缀。`
 
-  return (
-    <div className="group-cell">
-      <div className="group-row">
-        <HoverCard
-          content={
-            credential.group
-              ? `该凭证当前写入 ${prefix} 分组，${credential.models.length} 个模型统一使用这个前缀（例如 ${prefix}${settings.inspectionModel}）。`
-              : `尚未写入分组前缀，仍使用原始模型名。检测得出结论后会为该凭证的 ${credential.models.length} 个模型统一加上前缀。`
-          }
-        >
-          <span className={`group-state is-${tone}`}>
-            <span className="group-state-dot" aria-hidden="true" />
-            {label}
-          </span>
-        </HoverCard>
-        {onResync && <SyncBadge view={view} onResync={onResync} />}
+  if (compact) {
+    return (
+      <div className="group-cell">
+        <div className="group-row">
+          <HoverCard content={tooltip}>
+            <span className={`group-state is-${tone}`}>
+              <span className="group-state-dot" aria-hidden="true" />
+              {label}
+            </span>
+          </HoverCard>
+        </div>
       </div>
-      {!compact && (
-        <span className="group-sub">
-          {credential.group ? `覆盖 ${credential.models.length} 个模型` : '使用原始模型名'}
-        </span>
-      )}
+    )
+  }
+
+  // List: a plain prefix line instead of a second verdict pill keeps the row quiet.
+  return (
+    <div className="group-cell is-list">
+      <div className="group-line">
+        <span className={`group-dot is-${tone}`} aria-hidden="true" />
+        <HoverCard content={tooltip}>
+          <span className={`group-prefix is-${tone}`}>{credential.group ? prefix : '未分组'}</span>
+        </HoverCard>
+      </div>
+      <div className="group-sub">
+        {sync && onResync ? (
+          <button
+            type="button"
+            className="sync-link"
+            title={sync.detail}
+            onClick={(e) => {
+              stop(e)
+              onResync(credential.id)
+            }}
+          >
+            <span aria-hidden="true">↻</span> 待同步 · 重试
+          </button>
+        ) : credential.group ? (
+          `覆盖 ${credential.models.length} 个模型`
+        ) : (
+          '使用原始模型名'
+        )}
+      </div>
     </div>
   )
 }
 
 function QuotaCell({ view, settings }: { view: CredentialView; settings: Settings }) {
   const lowest = lowestQuota(view.credential)
+  const exhausted = view.credential.quota.status === 'exhausted'
   const blocked = lowest != null && lowest <= settings.quota.minRemainingPercent
   return (
     <div className="quota-cell">
       <QuotaMeter windows={view.credential.quota.windows} threshold={settings.quota.minRemainingPercent} />
-      {blocked && <span className="quota-warn">低于门槛 · 跳过</span>}
-      {lowest == null && <span className="quota-warn">额度未知</span>}
+      {exhausted ? (
+        <span className="quota-warn">额度不足 · 跳过</span>
+      ) : blocked ? (
+        <span className="quota-warn">低于门槛 · 跳过</span>
+      ) : lowest == null ? (
+        <span className="quota-warn">额度未知</span>
+      ) : null}
     </div>
   )
 }
 
-/** Credential-state chips (auth / quota). Kept in the identity line, not next to the group. */
+/** Credential-state flag (auth). Quota problems are already expressed in the quota cell. */
 function StateChips({ view }: { view: CredentialView }) {
   const auth = view.attention.find((a) => a.kind === 'auth')
-  const quota = view.attention.find((a) => a.kind === 'quota')
+  if (!auth) return null
   return (
-    <>
-      {auth && (
-        <HoverCard content={auth.detail}>
-          <Chip tone="downshift">认证失效</Chip>
-        </HoverCard>
-      )}
-      {quota && (
-        <HoverCard content={quota.detail}>
-          <Chip tone="uncertain">额度不足</Chip>
-        </HoverCard>
-      )}
-    </>
+    <HoverCard content={auth.detail}>
+      <Chip tone="downshift">认证失效</Chip>
+    </HoverCard>
   )
 }
 
@@ -195,7 +217,7 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
         <span>凭证</span>
         <span>结论</span>
         <span>近期状态</span>
-        <span>分组</span>
+        <span>当前分组</span>
         <span>剩余额度</span>
         <span style={{ textAlign: 'right' }}>操作</span>
       </div>

@@ -3673,3 +3673,82 @@ button {
     gap: 10px;
   }
 }
+/* ------------------------------------------- quiet list: prefix + sync link */
+
+.group-cell.is-list {
+  justify-content: center;
+  gap: 2px;
+}
+
+.group-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.group-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--neutral-dot);
+}
+
+.group-dot.is-normal {
+  background: var(--normal-dot);
+}
+
+.group-dot.is-downshift {
+  background: var(--danger-dot);
+}
+
+.group-prefix {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 560;
+  color: var(--text-2);
+}
+
+.group-prefix.is-normal {
+  color: var(--normal);
+}
+
+.group-prefix.is-downshift {
+  color: var(--danger);
+}
+
+.group-prefix.is-none {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 520;
+  color: var(--text-3);
+}
+
+.group-cell.is-list .group-sub {
+  line-height: 1.45;
+}
+
+.sync-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 560;
+  color: var(--warn);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sync-link:hover {
+  color: var(--danger);
+  text-decoration: underline;
+}
