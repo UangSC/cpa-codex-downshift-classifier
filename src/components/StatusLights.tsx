@@ -88,6 +88,9 @@ function RoundTip({ round, onOpen }: { round: InspectionRound; onOpen: () => voi
 /**
  * Horizontal history of the last rounds, oldest on the left.
  *
+ * A credential with no rounds yet still shows one dashed placeholder slot, so the column
+ * keeps its width/height and the surrounding layout never collapses.
+ *
  * Every light shows its round on hover/focus. The problem lights (yellow = uncertain,
  * red = downshift) can be clicked to pin the bubble: it then stays on screen, and once the
  * pointer leaves it waits about a second before fading out — moving back in cancels it.
@@ -104,7 +107,12 @@ export function StatusLights({
 }) {
   const rounds = lightSequence(target, limit)
   if (rounds.length === 0) {
-    return <span className="lights-empty">暂无记录</span>
+    return (
+      <div className="lights lights-is-empty" role="group" aria-label="近期检测状态：暂无记录">
+        <span className="light light-empty is-placeholder" aria-hidden="true" />
+        <span className="lights-empty">暂无记录</span>
+      </div>
+    )
   }
   return (
     <div

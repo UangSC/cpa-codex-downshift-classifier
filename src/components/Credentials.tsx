@@ -1,11 +1,30 @@
 import { useState } from 'react'
 import type { Settings } from '../types'
 import { formatRelative } from '../lib/format'
-import { lastRound, lowestQuota, verdictTone, type CredentialView } from '../lib/derive'
+import { lastRound, lowestQuota, type CredentialView } from '../lib/derive'
 import { Chip, HoverCard, Icon, PlanBadge, PlanMark, QuotaMeter, SecretName, useSelection } from './ui'
 import { StatusLights } from './StatusLights'
 
-const VERDICT_TEXT = { normal: '正常', downshift: '降档', uncertain: '不确定', untested: '未检测' } as const
+/**
+ * User-facing credential status. Four states only: 正常 / 降档 / 未知 / 异常.
+ * A finished verdict with a failed group write is *not* "normal + pending": it surfaces as
+ * 异常, with the retry offered as an action instead of a second status label.
+ */
+type StatusKey = 'normal' | 'downshift' | 'unknown' | 'error'
+
+const STATUS_TEXT: Record<StatusKey, string> = {
+  normal: '正常',
+  downshift: '降档',
+  unknown: '未知',
+  error: '异常',
+}
+
+function statusOf(view: CredentialView): StatusKey {
+  if (view.attention.some((a) => a.kind === 'sync' || a.kind === 'auth')) return 'error'
+  if (view.verdict === 'normal') return 'normal'
+  if (view.verdict === 'downshift') return 'downshift'
+  return 'unknown'
+}
 
 export interface CredentialRuntime {
   settings: Settings
@@ -23,11 +42,17 @@ function stop(e: { stopPropagation: () => void }) {
 
 /* ------------------------------------------------------------ shared bits */
 
-function VerdictPill({ verdict, big }: { verdict: CredentialView['verdict']; big?: boolean }) {
+/** The single four-state status chip used by cards (and the list verdict column). */
+function StatusPill({ view, size }: { view: CredentialView; size?: 'sm' }) {
+  const key = statusOf(view)
+  const detail = view.attention.find((a) => a.kind === 'sync' || a.kind === 'auth')?.detail
   return (
-    <span className={`verdict verdict-${verdict} ${big ? 'verdict-lg' : ''}`}>
-      <span className={`dot dot-${verdictTone(verdict)}`} aria-hidden="true" />
-      {VERDICT_TEXT[verdict]}
+    <span
+      className={`verdict verdict-${key} status-pill ${size === 'sm' ? 'is-sm' : ''}`}
+      title={detail}
+    >
+      <span className={`dot dot-${key === 'unknown' ? 'uncertain' : key === 'error' ? 'downshift' : key}`} aria-hidden="true" />
+      {STATUS_TEXT[key]}
     </span>
   )
 }
@@ -135,30 +160,9 @@ function StateChips({ view }: { view: CredentialView }) {
   )
 }
 
-/** The prefix write is a separate step, so its failure gets its own affordance next to the group. */
-function SyncBadge({ view, onResync }: { view: CredentialView; onResync: (id: string) => void }) {
-  const sync = view.attention.find((a) => a.kind === 'sync')
-  if (!sync) return null
-  return (
-    <button
-      type="button"
-      className="sync-badge"
-      title={sync.detail}
-      onClick={(e) => {
-        stop(e)
-        onResync(view.credential.id)
-      }}
-    >
-      <span className="sync-badge-dot" aria-hidden="true" />
-      待同步 · 重试
-    </button>
-  )
-}
-
 function Actions({
   view,
   runtime,
-  compact,
 }: {
   view: CredentialView
   runtime: CredentialRuntime
@@ -180,21 +184,24 @@ function Actions({
       >
         <button
           type="button"
-          className={`btn btn-sm ${compact ? 'btn-quiet' : ''}`}
+          className="btn btn-sm btn-retest"
           disabled={busy || expired}
           onClick={() => runtime.onRetest(view.credential.id)}
+          title={view.attention.some((a) => a.kind === 'sync') ? '复测会重新检测，并在结论变化时重新写入分组前缀' : undefined}
         >
           <Icon.Refresh />
-          {busy ? '检测中' : '复测'}
+          <span>{busy ? '检测中' : '复测'}</span>
         </button>
       </HoverCard>
       {view.target && (
         <button
           type="button"
-          className="btn btn-sm btn-ghost"
+          className="btn btn-sm btn-detail"
           onClick={() => runtime.onOpenDetail(view.target!.id, lastRound(view.target)?.id ?? null)}
+          title="查看本轮的题目、回答、指纹比对与分组写入"
         >
-          依据
+          <Icon.Doc />
+          <span>依据</span>
         </button>
       )}
     </div>
@@ -263,7 +270,7 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
             </div>
 
             <div className="cred-verdict-cell">
-              <VerdictPill verdict={view.verdict} />
+              <StatusPill view={view} />
             </div>
 
             <div className="cred-lights-cell">
@@ -277,7 +284,6 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
               <GroupCell
                 view={view}
                 settings={runtime.settings}
-                onResync={runtime.onResync}
               />
             </div>
 
@@ -428,8 +434,7 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
             </div>
 
             <div className="tile-foot">
-              <VerdictPill verdict={view.verdict} />
-              <SyncBadge view={view} onResync={runtime.onResync} />
+              <StatusPill view={view} size="sm" />
               <Actions view={view} runtime={runtime} compact />
             </div>
           </SelectableCard>
@@ -505,7 +510,7 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
       </div>
 
       <div className="pool-card-foot">
-        <SyncBadge view={view} onResync={runtime.onResync} />
+        <StatusPill view={view} size="sm" />
         <Actions view={view} runtime={runtime} compact />
       </div>
     </SelectableCard>

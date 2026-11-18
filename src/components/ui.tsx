@@ -139,6 +139,28 @@ export const Icon = {
       <circle cx="8" cy="5.2" r="0.7" fill="currentColor" />
     </svg>
   ),
+  Doc: () => (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M4 2.6h5.2L12.6 6v7.4H4V2.6Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path d="M9 2.8V6h3.2M6 8.4h4M6 10.6h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  ),
+  Sync: () => (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M12.6 6.4A4.8 4.8 0 0 0 4 4.4M3.4 9.6A4.8 4.8 0 0 0 12 11.6"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+      <path d="M12.8 2.9v3.7H9.1M3.2 13.1V9.4h3.7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 }
 
 /* ------------------------------------------------------------------ chips */
