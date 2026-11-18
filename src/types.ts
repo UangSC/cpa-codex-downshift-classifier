@@ -245,6 +245,7 @@ export interface RetryPolicy {
 }
 
 export interface PrefixSettings {
+  /** Empty means "keep the original model name" (no prefix). */
   normal: string
   downshift: string
 }
@@ -281,6 +282,8 @@ export interface Settings {
   inspectionModel: string
   /** Presentation preference for the credential list. */
   layout: 'list' | 'card' | 'pool'
+  /** Blur credential identities (the eye button in the overview toolbar). */
+  maskNames: boolean
   schedule: ScheduleSettings
   theme: 'light' | 'dark'
 }

@@ -383,7 +383,7 @@ const rawCredentials: Omit<Credential, 'group' | 'sync'>[] = [
     id: 'cred-research',
     name: 'research.alpha@example.com',
     file: 'codex-research-alpha.json',
-    plan: 'Pro',
+    plan: '100 Pro',
     auth: 'valid',
     availability: 'idle',
     busySessions: 0,
@@ -705,7 +705,8 @@ export const seedBehaviours: Record<string, SimBehaviour> = {
 }
 
 export const DEFAULT_SETTINGS = {
-  prefixes: { normal: 'normal/', downshift: 'downshift/' },
+  // Normal accounts keep the original model name by default; downshift adds its prefix.
+  prefixes: { normal: '', downshift: 'downshift/' },
   tests: ['candy', 'fingerprint'] as TestKind[],
   retry: { maxRetries: 2, baseDelayMs: 2000, backoffFactor: 2 },
   failureRule: { windowRounds: 2 },
@@ -713,6 +714,7 @@ export const DEFAULT_SETTINGS = {
   concurrency: { maxObjects: 3 },
   inspectionModel: 'gpt-6.1-sol',
   layout: 'list' as const,
+  maskNames: false,
   schedule: {
     enabled: false,
     mode: 'interval' as const,

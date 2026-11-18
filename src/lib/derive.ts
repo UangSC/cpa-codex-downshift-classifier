@@ -145,7 +145,8 @@ export function routedModelName(credential: Credential, model: string, settings:
   if (!credential.group) return model
   const prefix =
     credential.group === 'normal' ? settings.prefixes.normal : settings.prefixes.downshift
-  return `${prefix}${model}`
+  // An empty normal prefix means "keep the original model name".
+  return prefix ? `${prefix}${model}` : model
 }
 
 /* ------------------------------------------------------------------- views */

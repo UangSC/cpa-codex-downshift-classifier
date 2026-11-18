@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useStore } from '../store/store'
 import { evaluateEligibility, startInspection } from '../store/engine'
 import { buildViews, sortViews, type CredentialView } from '../lib/derive'
-import { formatRelative, maskIdentity } from '../lib/format'
+import { formatRelative } from '../lib/format'
 import { LIGHT_LEGEND } from '../lib/rules'
 import { CredentialGrid, CredentialList, CredentialPools } from '../components/Credentials'
 import { Dot, Icon, Modal, useNow } from '../components/ui'
@@ -275,6 +275,20 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <option value="quota">按剩余额度</option>
           <option value="name">按名称</option>
         </select>
+        <button
+          type="button"
+          className="btn btn-sm eye-btn"
+          aria-pressed={settings.maskNames}
+          onClick={() => state.updateSettings({ maskNames: !settings.maskNames })}
+          aria-label={settings.maskNames ? '取消隐藏账号名称' : '隐藏账号名称（模糊）'}
+          title={
+            settings.maskNames
+              ? '当前已模糊账号名称，点击显示完整名称'
+              : '模糊账号名称，方便截图或共享屏幕'
+          }
+        >
+          {settings.maskNames ? <Icon.EyeOff /> : <Icon.Eye />}
+        </button>
         <div className="segmented layout-switch" role="group" aria-label="布局">
           {LAYOUTS.map((item) => (
             <button
@@ -383,7 +397,7 @@ function summariseAttention(views: CredentialView[]) {
     for (const item of view.attention) {
       const existing = byKind.get(item.kind)
       if (existing) existing.count += 1
-      else byKind.set(item.kind, { kind: item.kind, count: 1, sample: maskIdentity(view.credential.name) })
+      else byKind.set(item.kind, { kind: item.kind, count: 1, sample: view.credential.name })
     }
   }
   const names: Record<string, string> = { sync: '分组待同步', auth: '认证失效', quota: '额度不足' }

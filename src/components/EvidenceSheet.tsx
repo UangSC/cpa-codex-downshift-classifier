@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { useStore } from '../store/store'
 import { resyncCredential, startInspection } from '../store/engine'
-import { attentionOf } from '../lib/derive'
-import { formatDateTime, formatDuration, formatRelative, formatSeconds, maskIdentity } from '../lib/format'
+import { attentionOf, routedModelName } from '../lib/derive'
+import { formatDateTime, formatDuration, formatRelative, formatSeconds } from '../lib/format'
 import { REASON_DESC, REASON_LABEL, VERDICT_LABEL, testLabel } from '../lib/rules'
-import { Chip, Collapse, Icon, Modal } from '../components/ui'
+import { Chip, Collapse, Icon, Modal, SecretName } from '../components/ui'
 
 export function EvidenceSheet() {
   const state = useStore()
@@ -50,7 +50,7 @@ export function EvidenceSheet() {
       }
       sub={
         <span>
-          {credential ? maskIdentity(credential.name) : '凭证已删除'}
+          {credential ? <SecretName name={credential.name} /> : '凭证已删除'}
           {round ? ` · 第 ${rounds.length - index} 轮 / 共 ${rounds.length} 轮 · ${formatDateTime(round.finishedAt)}` : ' · 暂无检测记录'}
         </span>
       }
@@ -336,13 +336,15 @@ export function EvidenceSheet() {
               <dt>当前生效</dt>
               <dd className="mono">
                 {credential?.group
-                  ? `${credential.group === 'normal' ? state.settings.prefixes.normal : state.settings.prefixes.downshift}${target.model}`
+                  ? routedModelName(credential, target.model, state.settings)
                   : `${target.model}（原始名称）`}
               </dd>
               <dt>凭证分组</dt>
               <dd>
                 {credential?.group === 'normal'
-                  ? `正常组 ${state.settings.prefixes.normal}（全部 ${groupedModels} 个模型）`
+                  ? state.settings.prefixes.normal
+                    ? `正常组 ${state.settings.prefixes.normal}（全部 ${groupedModels} 个模型）`
+                    : `正常组不加前缀（全部 ${groupedModels} 个模型保持原始名称）`
                   : credential?.group === 'downshift'
                     ? `降档组 ${state.settings.prefixes.downshift}（全部 ${groupedModels} 个模型）`
                     : '未分组'}

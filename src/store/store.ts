@@ -200,13 +200,17 @@ export const useStore = create<AppState>((set, get) => ({
     // from the new prefix immediately — the canonical model name never changes.
     set({ settings: next })
     const grouped = get().credentials.filter((c) => c.group)
+    const normalCopy = normal ? `正常组使用 ${normal}` : '正常组不加前缀（保持原始模型名）'
     get().notify({
       tone: 'success',
       title: '模型前缀已保存',
       detail:
         grouped.length > 0
-          ? `${grouped.length} 个已分组凭证的 ${grouped.reduce((n, c) => n + c.models.length, 0)} 个模型名会立即改用新前缀，原始模型名保持不变。`
-          : '新前缀将在下一次写入分组时生效。',
+          ? `${normalCopy}，降档组使用 ${downshift}；${grouped.length} 个已分组凭证的 ${grouped.reduce(
+              (n, c) => n + c.models.length,
+              0,
+            )} 个模型名会立即按新规则生效。`
+          : `${normalCopy}，降档组使用 ${downshift}。新前缀将在下一次写入分组时生效。`,
     })
   },
 

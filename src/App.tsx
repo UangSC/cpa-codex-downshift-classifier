@@ -36,6 +36,11 @@ export default function App() {
     document.documentElement.dataset.theme = settings.theme
   }, [settings.theme])
 
+  // Blur is a document-level flag so names stay blurred in every view and overlay.
+  useEffect(() => {
+    document.documentElement.dataset.maskNames = settings.maskNames ? 'true' : 'false'
+  }, [settings.maskNames])
+
   const selectionSet = useSelectionSet(selected)
   const selectionApi = useMemo(
     () => ({

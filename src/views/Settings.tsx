@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store/store'
 import { analyzePrefixes, buildModelName, DEFAULT_PREFIXES, stripGroupPrefix } from '../lib/prefix'
 import { failureRuleSentence, quotaSentence, retrySentence } from '../lib/rules'
-import { formatCountdown, formatDateTime, maskIdentity } from '../lib/format'
-import { Chip, Icon, Segmented, Switch, useNow } from '../components/ui'
+import { formatCountdown, formatDateTime } from '../lib/format'
+import { Chip, Icon, PlanBadge, SecretName, Segmented, Switch, useNow } from '../components/ui'
 import { applyScheduleChange } from '../store/scheduleActions'
 
 function Panel({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
@@ -62,18 +62,19 @@ function PrefixEditor() {
   return (
     <Panel
       title="分组前缀"
-      desc="检测通过写入正常组，判定降档写入降档组。原始模型名始终保留；前缀会改变模型名，因此需要确认后保存。"
+      desc="判定正常默认**不加前缀**（保持原始模型名），判定降档写入 downshift/；不确定与未完成不改变前缀。前缀会改变模型名，因此需要确认后保存。"
     >
       <div className="field-row">
         <div className="field">
           <div className="field-label">
             <Chip tone="normal">正常组</Chip>
+            <span className="field-optional">留空 = 不加前缀</span>
           </div>
           <div className={`input-group ${analysis.normal.errors.length ? 'input-err' : ''}`}>
             <input
               value={normal}
               onChange={(e) => setNormal(e.target.value)}
-              placeholder={DEFAULT_PREFIXES.normal}
+              placeholder="留空（原始模型名）"
               aria-label="正常分组前缀"
               spellCheck={false}
             />
@@ -89,11 +90,15 @@ function PrefixEditor() {
               {w}
             </div>
           ))}
+          {!analysis.normal.errors.length && !analysis.normal.normalized && (
+            <div className="field-hint">保存后正常凭证会恢复为原始模型名，不会添加任何前缀。</div>
+          )}
         </div>
 
         <div className="field">
           <div className="field-label">
             <Chip tone="downshift">降档组</Chip>
+            <span className="field-optional">默认 downshift/</span>
           </div>
           <div className={`input-group ${analysis.downshift.errors.length ? 'input-err' : ''}`}>
             <input
@@ -137,11 +142,14 @@ function PrefixEditor() {
             <Icon.Chevron dir="right" />
             <span>
               <span className="to is-normal">
-                {buildModelName(analysis.normal.normalized || 'normal/', settings.inspectionModel)}
+                {analysis.normal.normalized
+                  ? buildModelName(analysis.normal.normalized, settings.inspectionModel)
+                  : settings.inspectionModel}
+                {!analysis.normal.normalized && <span className="preview-note">（无前缀）</span>}
               </span>
               <br />
               <span className="to is-downshift">
-                {buildModelName(analysis.downshift.normalized || 'downshift/', settings.inspectionModel)}
+                {buildModelName(analysis.downshift.normalized || DEFAULT_PREFIXES.downshift, settings.inspectionModel)}
               </span>
             </span>
           </div>
@@ -157,11 +165,13 @@ function PrefixEditor() {
                 <Icon.Chevron dir="right" />
                 <span>
                   <span className="to is-normal">
-                    {buildModelName(analysis.normal.normalized || 'normal/', model)}
+                    {analysis.normal.normalized
+                      ? buildModelName(analysis.normal.normalized, model)
+                      : model}
                   </span>
                   <br />
                   <span className="to is-downshift">
-                    {buildModelName(analysis.downshift.normalized || 'downshift/', model)}
+                    {buildModelName(analysis.downshift.normalized || DEFAULT_PREFIXES.downshift, model)}
                   </span>
                 </span>
               </div>
@@ -179,7 +189,11 @@ function PrefixEditor() {
         <div className="schedule-note" style={{ marginBottom: 10 }}>
           <Icon.Info />
           <span>
-            保存后有 <b>{appliedCount}</b> 个已分组凭证的模型名会立即改用新前缀，原始模型名保持不变。
+            保存后有 <b>{appliedCount}</b> 个已分组凭证的模型名会按新规则生效：
+            {analysis.normal.normalized
+              ? `正常组加 ${analysis.normal.normalized} 前缀`
+              : '正常组恢复原始模型名（不加前缀）'}
+            ，降档组加 {analysis.downshift.normalized || DEFAULT_PREFIXES.downshift} 前缀。
           </span>
         </div>
       )}
@@ -465,11 +479,14 @@ export function SettingsView() {
                 return (
                   <div key={c.id} className="inline" style={{ justifyContent: 'space-between', fontSize: 11.5 }}>
                     <span style={{ color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {maskIdentity(c.name)}
+                      <SecretName name={c.name} />
                     </span>
-                    <span style={{ color: blocked ? 'var(--danger)' : 'var(--text-3)' }}>
-                      {lowest == null ? '额度未知' : `最低 ${lowest}%`}
-                      {blocked ? ' · 跳过' : ''}
+                    <span className="inline" style={{ gap: 6 }}>
+                      <PlanBadge plan={c.plan} />
+                      <span style={{ color: blocked ? 'var(--danger)' : 'var(--text-3)' }}>
+                        {lowest == null ? '额度未知' : `最低 ${lowest}%`}
+                        {blocked ? ' · 跳过' : ''}
+                      </span>
                     </span>
                   </div>
                 )

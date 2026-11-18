@@ -10,6 +10,7 @@ import { useStore } from './store/store'
 
 // Restore the persisted theme before the first paint to avoid a flash.
 document.documentElement.dataset.theme = useStore.getState().settings.theme
+document.documentElement.dataset.maskNames = useStore.getState().settings.maskNames ? 'true' : 'false'
 
 // Load the initial snapshot through the backend seam. Today that is the simulated
 // dataset; a real plugin serving the routes in `src/api/contract.ts` takes over once the

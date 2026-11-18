@@ -11,7 +11,7 @@
 
 import type { PrefixSettings } from '../types'
 
-export const DEFAULT_PREFIXES: PrefixSettings = { normal: 'normal/', downshift: 'downshift/' }
+export const DEFAULT_PREFIXES: PrefixSettings = { normal: '', downshift: 'downshift/' }
 
 /** Known group segments, used to peel off a prefix that was applied earlier. */
 const KNOWN_SEGMENTS = ['normal', 'downshift']
@@ -38,13 +38,16 @@ export interface PrefixAnalysis {
 
 const ILLEGAL = /[^\w\-./\u4e00-\u9fa5]/
 
-function normaliseOne(raw: string): PrefixFieldState {
+function normaliseOne(raw: string, allowEmpty = false): PrefixFieldState {
   const trimmed = raw.trim()
   const errors: string[] = []
   const warnings: string[] = []
 
   if (!trimmed) {
-    return { raw, normalized: '', adjusted: false, errors: ['前缀不能为空'], warnings }
+    // An empty normal prefix is intentional: keep the original model name.
+    return allowEmpty
+      ? { raw, normalized: '', adjusted: false, errors, warnings }
+      : { raw, normalized: '', adjusted: false, errors: ['前缀不能为空'], warnings }
   }
   if (ILLEGAL.test(trimmed)) {
     errors.push('只能包含字母、数字、下划线、连字符、点和斜杠')
@@ -86,7 +89,7 @@ function normaliseOne(raw: string): PrefixFieldState {
 }
 
 export function analyzePrefixes(prefixes: PrefixSettings): PrefixAnalysis {
-  const normal = normaliseOne(prefixes.normal)
+  const normal = normaliseOne(prefixes.normal, true)
   const downshift = normaliseOne(prefixes.downshift)
   const errors = [...normal.errors, ...downshift.errors]
   const warnings = [...normal.warnings, ...downshift.warnings]

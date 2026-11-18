@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/store'
-import { formatClock, formatDuration, formatRelative, maskIdentity } from '../lib/format'
+import { formatClock, formatDuration, formatRelative } from '../lib/format'
 import { roundTone } from '../lib/derive'
 import { REASON_LABEL, testLabel } from '../lib/rules'
-import { Chip, Dot, Icon, Segmented, useNow } from '../components/ui'
+import { Chip, Dot, Icon, PlanBadge, SecretName, Segmented, useNow } from '../components/ui'
 import type { InspectionRound, Credential, Target } from '../types'
 
 type HistoryFilter = 'all' | 'normal' | 'downshift' | 'uncertain' | 'incomplete'
@@ -179,8 +179,9 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
                       <span className="history-main">
                         <span className="history-title">
                           <span className="name">
-                            {credential ? maskIdentity(credential.name) : '凭证已删除'}
+                            {credential ? <SecretName name={credential.name} /> : '凭证已删除'}
                           </span>
+                          {credential && <PlanBadge plan={credential.plan} />}
                           <Chip
                             tone={
                               round.outcome === 'normal'

@@ -1,18 +1,9 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { LightTone } from '../lib/derive'
 import type { Verdict } from '../types'
 import { VERDICT_LABEL } from '../lib/rules'
+import { useStore } from '../store/store'
 
 /* ------------------------------------------------------------------ icons */
 
@@ -87,6 +78,29 @@ export const Icon = {
       <path d="M8 2.8 14 13H2L8 2.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
       <path d="M8 6.4v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <circle cx="8" cy="11.3" r="0.75" fill="currentColor" />
+    </svg>
+  ),
+  Eye: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M1.7 8S4.1 3.9 8 3.9 14.3 8 14.3 8 11.9 12.1 8 12.1 1.7 8 1.7 8Z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8" r="1.9" stroke="currentColor" strokeWidth="1.25" />
+    </svg>
+  ),
+  EyeOff: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M1.7 8S4.1 3.9 8 3.9 14.3 8 14.3 8 11.9 12.1 8 12.1 1.7 8 1.7 8Z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+        opacity="0.55"
+      />
+      <path d="M2.6 2.6l10.8 10.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
   Check: () => (
@@ -172,74 +186,203 @@ export function VerdictPill({ verdict }: { verdict: Verdict }) {
   )
 }
 
+/* ---------------------------------------------------------------- plans */
+
+const PLAN_BADGES: Record<string, { label: string; glyph?: string; cls: string }> = {
+  free: { label: 'FREE', cls: 'plan-free' },
+  plus: { label: 'PLUS', glyph: '+', cls: 'plan-plus' },
+  pro: { label: 'PRO', glyph: '◆', cls: 'plan-pro' },
+  team: { label: 'TEAM', glyph: '❖', cls: 'plan-team' },
+  '100pro': { label: '100 PRO', glyph: '★', cls: 'plan-100pro' },
+  enterprise: { label: 'ENT', glyph: '✦', cls: 'plan-enterprise' },
+}
+
+/** Small tier badge: each plan gets its own gradient / sparkle treatment. */
+export function PlanBadge({ plan }: { plan: string }) {
+  const key = plan.trim().toLowerCase().replace(/\s+/g, '')
+  const meta = PLAN_BADGES[key]
+  if (!meta) {
+    return (
+      <span className="plan-badge plan-plain" title={`套餐：${plan}`}>
+        {plan}
+      </span>
+    )
+  }
+  return (
+    <span className={`plan-badge ${meta.cls}`} title={`套餐：${plan}`}>
+      {meta.glyph && (
+        <span className="plan-glyph" aria-hidden="true">
+          {meta.glyph}
+        </span>
+      )}
+      {meta.label}
+    </span>
+  )
+}
+
+/**
+ * Credential identity. Blur is a presentation toggle (the eye button); the text itself is
+ * always the full identity, so switching masking on/off never changes stored data.
+ */
+export function SecretName({
+  name,
+  className,
+}: {
+  name: string
+  className?: string
+}) {
+  const masked = useStore((s) => s.settings.maskNames)
+  return (
+    <span className={`secret-name ${className ?? ''}`} title={masked ? undefined : name}>
+      {name}
+    </span>
+  )
+}
+
 /* --------------------------------------------------------------- tooltip */
 
 /**
  * Small hover/focus card rendered in a portal so card `overflow: hidden` never clips it.
  * Both pointer hover and keyboard focus open it, satisfying the status-light requirement.
  */
+/** A pinned tip lingers this long after the pointer leaves, then fades out. */
+const PIN_LINGER_MS = 1000
+const FADE_MS = 620
+
 export function HoverCard({
   content,
   children,
   placement = 'top',
+  pinOnClick = false,
+  hideDelay = 0,
 }: {
   content: ReactNode
   children: ReactNode
   placement?: 'top' | 'bottom'
+  /** Clicking the anchor pins the tip; after leaving it lingers, then fades out. */
+  pinOnClick?: boolean
+  hideDelay?: number
 }) {
-  const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [fading, setFading] = useState(false)
+  const [pinned, setPinned] = useState(false)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const anchor = useRef<HTMLSpanElement>(null)
-  const timer = useRef<number | null>(null)
+  const showTimer = useRef<number | null>(null)
+  const hideTimer = useRef<number | null>(null)
+  const fadeTimer = useRef<number | null>(null)
+  const pinnedRef = useRef(false)
 
-  const show = useCallback(() => {
-    if (timer.current) window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      const el = anchor.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      setPos({ x: rect.left + rect.width / 2, y: placement === 'top' ? rect.top - 8 : rect.bottom + 8 })
-      setOpen(true)
-    }, 90)
+  const clearTimers = useCallback(() => {
+    for (const ref of [showTimer, hideTimer, fadeTimer]) {
+      if (ref.current !== null) {
+        window.clearTimeout(ref.current)
+        ref.current = null
+      }
+    }
+  }, [])
+
+  const openNow = useCallback(() => {
+    const el = anchor.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setPos({ x: rect.left + rect.width / 2, y: placement === 'top' ? rect.top - 8 : rect.bottom + 8 })
+    setFading(false)
+    setVisible(true)
   }, [placement])
 
-  const hide = useCallback(() => {
-    if (timer.current) window.clearTimeout(timer.current)
-    setOpen(false)
-  }, [])
+  /** Entering again during the linger or the fade cancels the pending close. */
+  const show = useCallback(() => {
+    clearTimers()
+    showTimer.current = window.setTimeout(
+      () => {
+        showTimer.current = null
+        openNow()
+      },
+      visible ? 0 : 90,
+    )
+  }, [clearTimers, openNow, visible])
 
-  useEffect(() => () => {
-    if (timer.current) window.clearTimeout(timer.current)
-  }, [])
+  /**
+   * Leaving schedules the close. A pinned tip waits `PIN_LINGER_MS` first, so moving back
+   * inside during that window keeps it open; it then fades out over `FADE_MS`.
+   */
+  const scheduleHide = useCallback(() => {
+    clearTimers()
+    const wait = pinnedRef.current ? Math.max(PIN_LINGER_MS, hideDelay) : hideDelay
+    hideTimer.current = window.setTimeout(() => {
+      hideTimer.current = null
+      setFading(true)
+      fadeTimer.current = window.setTimeout(() => {
+        fadeTimer.current = null
+        setVisible(false)
+        setFading(false)
+        pinnedRef.current = false
+        setPinned(false)
+      }, FADE_MS)
+    }, wait)
+  }, [clearTimers, hideDelay])
+
+  const hideNow = useCallback(() => {
+    clearTimers()
+    setVisible(false)
+    setFading(false)
+  }, [clearTimers])
+
+  useEffect(
+    () => () => {
+      clearTimers()
+    },
+    [clearTimers],
+  )
+
+  const togglePin = () => {
+    const next = !pinnedRef.current
+    pinnedRef.current = next
+    setPinned(next)
+    if (next) {
+      clearTimers()
+      openNow()
+    } else {
+      scheduleHide()
+    }
+  }
 
   return (
     <>
       <span
         ref={anchor}
         onMouseEnter={show}
-        onMouseLeave={hide}
+        onMouseLeave={scheduleHide}
         onFocus={show}
-        onBlur={hide}
+        onBlur={() => !pinnedRef.current && hideNow()}
+        onClick={pinOnClick ? togglePin : undefined}
+        data-pinned={pinned ? 'true' : undefined}
         style={{ display: 'inline-flex' }}
       >
         {children}
       </span>
-      {open &&
+      {visible &&
         createPortal(
           <div
-            className="tip"
+            className={`tip ${fading ? 'is-fading' : ''} ${pinned ? 'is-pinned' : ''} ${
+              pinOnClick ? 'has-hint' : ''
+            }`}
             role="tooltip"
             style={{
               left: pos.x,
               top: pos.y,
               transform: placement === 'top' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
             }}
-            onMouseEnter={() => {
-              if (timer.current) window.clearTimeout(timer.current)
-            }}
-            onMouseLeave={hide}
+            onMouseEnter={show}
+            onMouseLeave={scheduleHide}
           >
             {content}
+            {pinOnClick && (
+              <div className="tip-pin-hint">
+                {pinned ? '已固定 · 移出 1 秒后自动淡出' : '点击固定气泡'}
+              </div>
+            )}
           </div>,
           document.body,
         )}

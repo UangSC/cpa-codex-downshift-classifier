@@ -779,7 +779,7 @@ export async function resyncCredential(credentialId: string) {
     ),
   }))
 
-  const preview = useStore.getState().settings.prefixes[desired]
+  const prefix = useStore.getState().settings.prefixes[desired]
   useStore.getState().notify(
     fails
       ? {
@@ -790,7 +790,9 @@ export async function resyncCredential(credentialId: string) {
       : {
           tone: 'success',
           title: '分组已同步',
-          detail: `该凭证的 ${latest.models.length} 个模型已统一使用 ${preview} 前缀。`,
+          detail: prefix
+            ? `该凭证的 ${latest.models.length} 个模型已统一使用 ${prefix} 前缀。`
+            : `该凭证的 ${latest.models.length} 个模型已恢复原始模型名（不加前缀）。`,
         },
   )
 }

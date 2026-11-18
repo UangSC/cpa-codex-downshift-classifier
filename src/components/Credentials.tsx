@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { Settings } from '../types'
-import { formatRelative, maskIdentity } from '../lib/format'
+import { formatRelative } from '../lib/format'
 import { lastRound, lowestQuota, verdictTone, type CredentialView } from '../lib/derive'
-import { Chip, HoverCard, Icon, QuotaMeter, useSelection } from './ui'
+import { Chip, HoverCard, Icon, PlanBadge, QuotaMeter, SecretName, useSelection } from './ui'
 import { StatusLights } from './StatusLights'
 
 const VERDICT_TEXT = { normal: '正常', downshift: '降档', uncertain: '不确定', untested: '未检测' } as const
@@ -61,7 +61,9 @@ function GroupCell({
   const tone = credential.group ?? 'none'
   const sync = view.attention.find((a) => a.kind === 'sync')
   const tooltip = credential.group
-    ? `该凭证当前写入 ${prefix} 分组，${credential.models.length} 个模型统一使用这个前缀（例如 ${prefix}${settings.inspectionModel}）。`
+    ? credential.group === 'normal' && !prefix
+      ? `正常组当前不添加前缀：${credential.models.length} 个模型保持原始模型名。可在设置中为正常组配置前缀。`
+      : `该凭证当前写入 ${prefix} 分组，${credential.models.length} 个模型统一使用这个前缀（例如 ${prefix}${settings.inspectionModel}）。`
     : `尚未写入分组前缀，仍使用原始模型名。检测得出结论后会为该凭证的 ${credential.models.length} 个模型统一加上前缀。`
 
   if (compact) {
@@ -85,7 +87,7 @@ function GroupCell({
       <div className="group-line">
         <span className={`group-dot is-${tone}`} aria-hidden="true" />
         <HoverCard content={tooltip}>
-          <span className={`group-prefix is-${tone}`}>{credential.group ? prefix : '未分组'}</span>
+          <span className={`group-prefix is-${tone}`}>{credential.group ? prefix || '无前缀' : '未分组'}</span>
         </HoverCard>
       </div>
       <div className="group-sub">
@@ -235,7 +237,7 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
                 className="checkbox"
                 checked={selected}
                 onChange={() => selection.toggle(view.credential.id)}
-                aria-label={`选择 ${maskIdentity(view.credential.name)}`}
+                aria-label={`选择 ${view.credential.name}`}
               />
             </div>
 
@@ -245,10 +247,8 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
               </span>
               <div className="cred-ident-main">
                 <div className="cred-name-line">
-                  <span className="cred-name" title={maskIdentity(view.credential.name)}>
-                    {maskIdentity(view.credential.name)}
-                  </span>
-                  <Chip>{view.credential.plan}</Chip>
+                  <SecretName name={view.credential.name} className="cred-name" />
+                  <PlanBadge plan={view.credential.plan} />
                   {view.credential.availability === 'busy' && (
                     <HoverCard
                       content={`当前有 ${view.credential.busySessions} 个会话在运行；巡检会在同一任务内等它空闲后继续。`}
@@ -387,10 +387,8 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
               </span>
               <div className="tile-ident">
                 <div className="tile-name-line">
-                  <span className="tile-name" title={maskIdentity(view.credential.name)}>
-                    {maskIdentity(view.credential.name)}
-                  </span>
-                  <Chip>{view.credential.plan}</Chip>
+                  <SecretName name={view.credential.name} className="tile-name" />
+                  <PlanBadge plan={view.credential.plan} />
                   {busy && (
                     <HoverCard content={`正在检测该凭证，结论会作用于它的全部模型`}>
                       <Chip tone="uncertain" dot>
@@ -456,7 +454,7 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
 
 /* ------------------------------------------------------------------ pools */
 
-const POOL_PAGE_SIZE = 2
+const POOL_PAGE_SIZE = 8
 
 type PoolKey = 'normal' | 'uncertain' | 'downshift'
 
@@ -464,6 +462,15 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
   const selection = useSelection()
   const selected = selection.has(view.credential.id)
   const busy = runtime.activeCredentialIds.includes(view.credential.id)
+  const lowest = lowestQuota(view.credential)
+  const gateNote =
+    view.credential.quota.status === 'exhausted'
+      ? '额度不足'
+      : lowest == null
+        ? '额度未知'
+        : lowest <= runtime.settings.quota.minRemainingPercent
+          ? `低于门槛 ${runtime.settings.quota.minRemainingPercent}%`
+          : null
   return (
     <SelectableCard
       selected={selected}
@@ -473,58 +480,42 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
       title={cardNote(view)}
     >
       <div className="pool-card-top">
-        <span className="tile-avatar is-sm" aria-hidden="true">
-          {initials(view.credential.name)}
-        </span>
-        <div className="pool-ident">
-          <div className="pool-name-line">
-            <span className="pool-name" title={maskIdentity(view.credential.name)}>
-              {maskIdentity(view.credential.name)}
-            </span>
-            <Chip>{view.credential.plan}</Chip>
-            {busy && (
-              <Chip tone="uncertain" dot>
-                检测中
-              </Chip>
-            )}
-            {selected && (
-              <span className="tile-check" aria-label="已选择">
-                <Icon.Check />
-              </span>
-            )}
-          </div>
-          <div className="pool-sub">
-            <span className="mono">{view.credential.file}</span>
-            <span className="dot-sep" aria-hidden="true">
-              ·
-            </span>
-            <span>
-              {view.lastCheckedAt ? `${formatRelative(view.lastCheckedAt, runtime.now)}检测` : '无检测记录'}
-            </span>
-          </div>
-        </div>
+        <SecretName name={view.credential.name} className="pool-name" />
+        <PlanBadge plan={view.credential.plan} />
+        {busy && (
+          <Chip tone="uncertain" dot>
+            检测中
+          </Chip>
+        )}
+        {selected && (
+          <span className="tile-check" aria-label="已选择">
+            <Icon.Check />
+          </span>
+        )}
         <VerdictPill verdict={view.verdict} />
       </div>
 
-      <div className="pool-card-mid">
-        <span className="pool-lights">
-          <span className="tile-label">近期</span>
-          <StatusLights
-            target={view.target}
-            onOpen={(roundId) => view.target && runtime.onOpenDetail(view.target.id, roundId)}
-            limit={7}
-          />
-        </span>
-        <span className="pool-group">
-          <GroupCell view={view} settings={runtime.settings} compact />
-          <span className="tile-model">· {view.credential.models.length} 个模型</span>
-        </span>
-        <span className="pool-quota">
-          <QuotaCell view={view} settings={runtime.settings} />
+      <div className="pool-card-lights">
+        <span className="tile-label">近期</span>
+        <StatusLights
+          target={view.target}
+          onOpen={(roundId) => view.target && runtime.onOpenDetail(view.target.id, roundId)}
+          limit={6}
+        />
+        <span className="tile-time">
+          {view.lastCheckedAt ? formatRelative(view.lastCheckedAt, runtime.now) : '未检测'}
         </span>
       </div>
 
-      <div className="pool-reason">{cardNote(view)}</div>
+      <div className="pool-card-group">
+        <GroupCell view={view} settings={runtime.settings} compact />
+        <span className="tile-model">· {view.credential.models.length} 个模型</span>
+        {gateNote && <span className="tile-gate">{gateNote}</span>}
+      </div>
+
+      <div className="pool-card-quota">
+        <QuotaCell view={view} settings={runtime.settings} />
+      </div>
 
       <div className="pool-card-foot">
         <SyncBadge view={view} onResync={runtime.onResync} />
