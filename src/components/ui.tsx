@@ -777,16 +777,17 @@ export function QuotaMeter({
         const mid = value != null && !low && value < 45
         return (
           <div className="quota-item" key={w.key}>
-            <div className="quota-label">
-              <span>{w.key}</span>
-              <b className={low ? 'is-low' : ''}>{value == null ? '未知' : `${value}%`}</b>
-            </div>
+            {/* Label sits before the track, so the bar itself takes the whole row width. */}
+            <span className="quota-key">{w.key === '7d' ? '周限' : w.key}</span>
             <div className="quota-bar">
               <span
                 className={value == null ? 'is-unknown' : low ? 'is-low' : mid ? 'is-mid' : ''}
                 style={{ width: value == null ? '100%' : `${Math.max(2, value)}%` }}
               />
             </div>
+            <b className={`quota-value ${low ? 'is-low' : ''}`}>
+              {value == null ? '未知' : `${value}%`}
+            </b>
           </div>
         )
       })}

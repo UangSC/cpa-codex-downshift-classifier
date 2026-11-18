@@ -4820,3 +4820,186 @@ body {
 .pool-card-top {
   align-items: center;
 }
+/* ==========================================================================
+   Quota: one column, one bar per row (label · track · value)
+   ========================================================================== */
+
+.quota-cell,
+.tile-quota,
+.pool-card-quota {
+  width: 100%;
+  min-width: 0;
+}
+
+.quota {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+.quota-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.quota-key {
+  font-size: 11px;
+  font-weight: 560;
+  color: var(--text-3);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.quota-value {
+  font-size: 11.5px;
+  font-weight: 620;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.quota-value.is-low {
+  color: var(--danger);
+}
+
+.quota-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.quota-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--normal-dot);
+  transition: width 0.2s ease;
+}
+
+.quota-bar span.is-low {
+  background: var(--danger-dot);
+}
+
+.quota-bar span.is-mid {
+  background: var(--warn-dot);
+}
+
+.quota-bar span.is-unknown {
+  background: repeating-linear-gradient(90deg, var(--border-strong) 0 3px, transparent 3px 6px);
+}
+
+.quota-warn {
+  font-size: 10.5px;
+  margin-top: 1px;
+}
+
+/* List: give the name column back to the quota column. */
+@media (min-width: 1900px) {
+  .cred-table-head,
+  .cred-row {
+    grid-template-columns: 28px minmax(0, 1fr) 104px 158px 176px 264px 156px;
+  }
+}
+
+.cred-quota-cell {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Card: the two bars span the whole card row. */
+.tile-quota {
+  display: block;
+  min-height: 0;
+}
+
+.cred-tile .quota {
+  gap: 6px;
+}
+
+.cred-tile .quota-item {
+  grid-template-columns: 32px minmax(0, 1fr) 44px;
+}
+
+/* Pool card: same one-column, two-row meter, full width. */
+.pool-card-quota {
+  display: block;
+  min-height: 0;
+}
+
+.pool-card .quota {
+  gap: 4px;
+}
+
+.pool-card .quota-item {
+  grid-template-columns: 28px minmax(0, 1fr) 40px;
+  gap: 6px;
+}
+
+.pool-card .quota-key,
+.pool-card .quota-value {
+  font-size: 10.5px;
+}
+
+.pool-card .quota-warn {
+  display: none;
+}
+/* Quota: keep rows aligned with the taller two-line meter. */
+.cred-quota-cell {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.cred-row {
+  min-height: 74px;
+}
+
+.tile-quota {
+  margin-top: 1px;
+}
+
+/* Value column so "91%" and "74%" share the same right edge. */
+.quota-value {
+  min-width: 38px;
+}
+
+.pool-card .quota-value {
+  min-width: 34px;
+}
+
+/* Unknown quota keeps a readable hint without stealing a row. */
+.quota-cell .quota-warn,
+.tile-quota .quota-warn {
+  margin-top: 3px;
+}
+/* Keep every list row one height: the two-bar meter plus the optional gate hint
+   always reserves the same box, so rows with "低于门槛/额度未知" do not grow. */
+.cred-quota-cell {
+  min-height: 52px;
+}
+
+.cred-row {
+  min-height: 80px;
+}
+
+.cred-quota-cell .quota-warn {
+  line-height: 1.3;
+  min-height: 14px;
+}
+
+/* Rows without a warning still reserve the hint line. */
+.cred-quota-cell:not(:has(.quota-warn))::after {
+  content: '';
+  display: block;
+  height: 14px;
+  margin-top: 3px;
+}
