@@ -107,10 +107,30 @@ export function StatusLights({
 }) {
   const rounds = lightSequence(target, limit)
   if (rounds.length === 0) {
+    // No rounds yet: one dashed slot keeps the strip's footprint, and the explanation
+    // lives in a hover bubble instead of inline text pushing the strip off-centre.
     return (
       <div className="lights lights-is-empty" role="group" aria-label="近期检测状态：暂无记录">
-        <span className="light light-empty is-placeholder" aria-hidden="true" />
-        <span className="lights-empty">暂无记录</span>
+        <HoverCard
+          content={
+            <>
+              <div className="tip-title">暂无检测记录</div>
+              <div className="tip-row">
+                <span className="tip-k">说明</span>
+                <span className="tip-v">
+                  该凭证还没有执行过检测。点「复测」执行一轮，结果会按时间顺序显示在这里。
+                </span>
+              </div>
+            </>
+          }
+        >
+          <button
+            type="button"
+            className="light light-empty is-placeholder"
+            aria-label="暂无检测记录，悬停查看说明"
+            title="暂无检测记录"
+          />
+        </HoverCard>
       </div>
     )
   }

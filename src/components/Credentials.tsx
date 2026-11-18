@@ -61,12 +61,10 @@ function GroupCell({
   view,
   settings,
   compact,
-  onResync,
 }: {
   view: CredentialView
   settings: Settings
   compact?: boolean
-  onResync?: (id: string) => void
 }) {
   const { credential } = view
   const prefix =
@@ -78,11 +76,27 @@ function GroupCell({
   const label = credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'
   const tone = credential.group ?? 'none'
   const sync = view.attention.find((a) => a.kind === 'sync')
-  const tooltip = credential.group
-    ? credential.group === 'normal' && !prefix
-      ? `正常组当前不添加前缀：${credential.models.length} 个模型保持原始模型名。可在设置中为正常组配置前缀。`
-      : `该凭证当前写入 ${prefix} 分组，${credential.models.length} 个模型统一使用这个前缀（例如 ${prefix}${settings.inspectionModel}）。`
-    : `尚未写入分组前缀，仍使用原始模型名。检测得出结论后会为该凭证的 ${credential.models.length} 个模型统一加上前缀。`
+  const tooltip = (
+    <>
+      <div className="tip-title">{credential.group ? prefix || '未加前缀' : '未分组'}</div>
+      <div className="tip-row">
+        <span className="tip-k">影响</span>
+        <span className="tip-v">
+          {credential.group === 'normal' && !prefix
+            ? `正常组不加前缀：${credential.models.length} 个模型保持原始模型名（可在设置中配置正常组前缀）。`
+            : credential.group
+              ? `${credential.models.length} 个模型统一使用该前缀（例如 ${prefix}${settings.inspectionModel}）。`
+              : `尚未写入分组前缀：${credential.models.length} 个模型仍使用原始模型名。`}
+        </span>
+      </div>
+      {sync && (
+        <div className="tip-row">
+          <span className="tip-k">同步</span>
+          <span className="tip-v">{sync.detail}</span>
+        </div>
+      )}
+    </>
+  )
 
   if (compact) {
     return (
@@ -100,6 +114,8 @@ function GroupCell({
   }
 
   // List: a plain prefix line instead of a second verdict pill keeps the row quiet.
+  // The sub-line is deliberately gone — the prefix alone says everything; the model
+  // count and the sync action live in the hover bubble.
   return (
     <div className="group-cell is-list">
       <div className="group-line">
@@ -107,25 +123,6 @@ function GroupCell({
         <HoverCard content={tooltip}>
           <span className={`group-prefix is-${tone}`}>{credential.group ? prefix || '无前缀' : '未分组'}</span>
         </HoverCard>
-      </div>
-      <div className="group-sub">
-        {sync && onResync ? (
-          <button
-            type="button"
-            className="sync-link"
-            title={sync.detail}
-            onClick={(e) => {
-              stop(e)
-              onResync(credential.id)
-            }}
-          >
-            <span aria-hidden="true">↻</span> 待同步 · 重试
-          </button>
-        ) : credential.group ? (
-          `覆盖 ${credential.models.length} 个模型`
-        ) : (
-          '使用原始模型名'
-        )}
       </div>
     </div>
   )
