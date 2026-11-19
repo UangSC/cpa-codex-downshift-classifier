@@ -26,6 +26,43 @@ export function evaluateEligibility(target: Target, settings: Settings): Eligibi
 function notifyError(title: string, error: unknown) {
   useStore.getState().notify({ tone: 'danger', title, detail: error instanceof Error ? error.message : String(error) })
 }
+/** 概览快捷设置与设置页共用保存校验和已启用计划的配置确认。 */
+export async function saveInspectionOptions(patch: Partial<Pick<Settings, 'inspectionMethod' | 'concurrency'>>): Promise<boolean> {
+  const state = useStore.getState()
+  if (state.connection !== 'connected' || state.settingsSaving || state.starting || state.settingsDraft || state.inspectionConfirmation || state.pendingSettingsConfirmation) return false
+  if ((patch.inspectionMethod === undefined || patch.inspectionMethod === state.settings.inspectionMethod)
+    && (patch.concurrency === undefined || patch.concurrency.maxObjects === state.settings.concurrency.maxObjects)) return true
+  state.editSettingsDraft(patch)
+  const saved = await state.saveSettingsDraft()
+  if (!saved && !useStore.getState().pendingSettingsConfirmation) useStore.setState({ settingsDraft: null })
+  return saved
+}
+
+/** 仅提交点击时实际显示的凭证；额度刷新不会触发巡检或分组写入。 */
+export async function refreshCredentialsQuota(credentialIds: string[]): Promise<void> {
+  const state = useStore.getState()
+  if (state.connection !== 'connected' || state.quotaRefreshing.length) return
+  const existing = new Set(state.credentials.map((credential) => credential.id))
+  const ids = [...new Set(credentialIds)].filter((id) => existing.has(id))
+  if (!ids.length) return
+  const requestKey = currentManagementKey()
+  useStore.setState({ quotaRefreshing: ids, mutationVersion: state.mutationVersion + 1 })
+  try {
+    const result = await backend.refreshQuota({ credentialIds: ids })
+    if (currentManagementKey() !== requestKey) return
+    const refreshed = await refreshSnapshot(true)
+    if (currentManagementKey() !== requestKey) return
+    const failed = result.failed.length
+    useStore.getState().notify({ tone: failed || !refreshed ? 'warning' : 'success',
+      title: failed ? `额度刷新：${result.refreshedIds.length} 个成功，${failed} 个失败` : `已刷新 ${result.refreshedIds.length} 个凭证额度`,
+      detail: !refreshed ? '额度请求已完成，当前页面未能同步结果；恢复连接后会再次读取。'
+        : failed ? result.failed.slice(0, 2).map((item) => item.error).join('；') : undefined })
+  } catch (error) {
+    if (currentManagementKey() === requestKey) notifyError('额度刷新失败', error)
+  } finally {
+    useStore.setState((current) => ({ quotaRefreshing: current.quotaRefreshing.filter((id) => !ids.includes(id)) }))
+  }
+}
 export async function startInspection(scope: InspectionTask['scope'], targetIds?: string[]): Promise<string | null> {
   const state = useStore.getState()
   if (scope === 'scheduled') { notifyError('定时巡检由服务端管理', new Error('请在设置中开启计划并确认后台配置修改权限')); return null }

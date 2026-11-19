@@ -39,8 +39,11 @@ func validateSettings(v Settings) error {
 	if v.FailureRule.WindowRounds < 2 || v.FailureRule.WindowRounds > 4 {
 		return bad("失败判定轮数必须为 2～4")
 	}
-	if v.Concurrency.MaxObjects < 1 || v.Concurrency.MaxObjects > 6 {
-		return bad("并发必须为 1～6")
+	if v.FailureRule.RequestThreshold < 2 || v.FailureRule.RequestThreshold > 5 {
+		return bad("单轮频繁异常门槛必须为 2～5 次")
+	}
+	if v.Concurrency.MaxObjects < 1 || v.Concurrency.MaxObjects > 9 {
+		return bad("并发必须为 1～9")
 	}
 	if v.Quota.MinRemainingPercent < 0 || v.Quota.MinRemainingPercent > 100 || math.IsNaN(v.Quota.MinRemainingPercent) || (v.Quota.UnknownPolicy != "check" && v.Quota.UnknownPolicy != "skip") {
 		return bad("额度策略无效")

@@ -11,12 +11,13 @@ import { SettingsPanel as Panel } from '../components/SettingsPanel'
 import { getInspectionMethod, listInspectionMethods } from '../inspection'
 import { restoreManualReminder } from '../lib/manualInspectionConsent'
 import { RequestHeadersEditor } from '../components/RequestHeadersEditor'
+import { formatSeconds } from '../lib/format'
 
 function RetryEditor() {
   const { settings, update } = useSettingsEditor()
 
   return (
-    <Panel title="重试与重复失败判定" desc="本轮所有题目共用重试次数。服务错误或无效回答会重试；糖果题答案不符直接判定。">
+    <Panel title="重试与频繁异常判定" desc="502/503/429 和无效回答按预算重试；同轮频繁异常可直接降档，糖果题答案不符直接判定。">
       <div className="field-row">
         <div className="field">
           <label className="field-label" htmlFor="retry-count">最大重试次数</label>
@@ -44,9 +45,9 @@ function RetryEditor() {
             }
             disabled={settings.retry.maxRetries === 0}
           >
-            {[500, 1000, 2000, 3000, 5000].map((ms) => (
+            {[...new Set([500, 1000, 2000, 3000, 5000, 10000, 15000, 30000, 60000, settings.retry.baseDelayMs])].sort((a, b) => a - b).map((ms) => (
               <option key={ms} value={ms}>
-                {(ms / 1000).toFixed(1)} 秒
+                {formatSeconds(ms)}
               </option>
             ))}
           </select>
@@ -71,15 +72,26 @@ function RetryEditor() {
       </div>
 
       <div className="field">
-        <div className="field-label">重复失败判定</div>
+        <div className="field-label">单轮异常降档次数</div>
+        <Segmented
+          ariaLabel="单轮异常降档次数"
+          value={String(settings.failureRule.requestThreshold ?? 3)}
+          onChange={(value) => update({ failureRule: { ...settings.failureRule, requestThreshold: Number(value) } })}
+          options={[2, 3, 4, 5].map((count) => ({ value: String(count), label: `${count} 次` }))}
+        />
+        <div className="field-hint">同一轮 502、503、429 达到次数门槛就立即归入降档，混合状态也累计。</div>
+      </div>
+
+      <div className="field">
+        <div className="field-label">跨轮补充规则</div>
         <Segmented
           ariaLabel="连续巡检失败轮数"
           value={String(settings.failureRule.windowRounds)}
-          onChange={(v) => update({ failureRule: { windowRounds: Number(v) } })}
+          onChange={(v) => update({ failureRule: { ...settings.failureRule, windowRounds: Number(v) } })}
           options={[2, 3, 4].map((n) => ({ value: String(n), label: `连续 ${n} 轮` }))}
         />
         <div className="field-hint">
-          一轮是一次完整巡检，可以包含首次请求与多次重试。这里统计连续多少轮重试后仍失败，与单轮重试次数独立。
+          未达到单轮次数门槛时，连续多轮仍以 502/503/429 异常结束也会降档；完整通过会打断累计。
         </div>
       </div>
 
@@ -182,15 +194,15 @@ export function SettingsView() {
           </div>
 
           <div className="field">
-            <div className="field-label">单对象检测并发</div>
+            <div className="field-label">同时检测的凭证数</div>
             <div className="input-group input-compact">
               <input
                 type="number"
                 min={1}
-                max={6}
+                max={9}
                 value={settings.concurrency.maxObjects}
                 onChange={(e) => {
-                  const n = Math.min(6, Math.max(1, Number(e.target.value) || 1))
+                  const n = Math.min(9, Math.max(1, Number(e.target.value) || 1))
                   update({ concurrency: { maxObjects: n } })
                 }}
                 aria-label="同时检测的对象数"

@@ -35,6 +35,7 @@ interface AppState {
   runPanelOpen: boolean
   legendOpen: boolean
   syncing: string[]
+  quotaRefreshing: string[]
   starting: boolean
   mutationVersion: number
   configChangesRevision: string
@@ -86,7 +87,7 @@ export const useStore = create<AppState>((set, get) => ({
   settingsDraft: null, settingsSaving: false, pendingTab: null, tasks: [],
   capabilities: { ...EMPTY_CAPABILITIES }, connection: 'connecting', connectionError: '', authenticated: false, lastUpdatedAt: null,
   selected: [], filters: { search: '', verdict: 'all', sort: 'recent' }, toasts: [], tab: 'overview',
-  sourceDetail: '', detail: null, runPanelOpen: false, legendOpen: false, syncing: [], starting: false, mutationVersion: 0,
+  sourceDetail: '', detail: null, runPanelOpen: false, legendOpen: false, syncing: [], quotaRefreshing: [], starting: false, mutationVersion: 0,
   configChangesRevision: '', exclusionDrawerOpen: false, excluding: [],
   inspectionConfirmation: null, inspectionConfirmError: '', pendingSettingsConfirmation: null, settingsConfirmError: '',
 
@@ -100,6 +101,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (snapshot.source !== 'live' || !Array.isArray(snapshot.credentials) || !Array.isArray(snapshot.targets) || !snapshot.settings) throw new Error('CPA 插件返回的状态格式无效')
     const settings = {
       ...snapshot.settings, reasoningEffort: snapshot.settings.reasoningEffort ?? DEFAULT_SETTINGS.reasoningEffort,
+      failureRule: { ...DEFAULT_SETTINGS.failureRule, ...snapshot.settings.failureRule },
       headerOverrides: snapshot.settings.headerOverrides ?? {},
       pagination: { ...DEFAULT_SETTINGS.pagination, ...snapshot.settings.pagination },
       routing: normalizeRouting(snapshot.settings.routing),
@@ -193,7 +195,10 @@ export const useStore = create<AppState>((set, get) => ({
   setRunPanel: (open) => set({ runPanelOpen: open }), setLegendOpen: (open) => set({ legendOpen: open }),
   setExclusionDrawerOpen: (open) => set({ exclusionDrawerOpen: open }),
   closeInspectionConfirmation: () => { if (!get().starting) set({ inspectionConfirmation: null, inspectionConfirmError: '' }) },
-  closeSettingsConfirmation: () => { if (!get().settingsSaving) set({ pendingSettingsConfirmation: null, settingsConfirmError: '' }) },
+  closeSettingsConfirmation: () => {
+    if (!get().settingsSaving) set({ pendingSettingsConfirmation: null, settingsConfirmError: '',
+      ...(get().tab === 'overview' ? { settingsDraft: null } : {}) })
+  },
   dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   notify: (toast) => {
     const id = `toast-${++toastSeq}`

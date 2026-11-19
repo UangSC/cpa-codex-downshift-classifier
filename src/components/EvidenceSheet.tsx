@@ -2,12 +2,46 @@ import { useMemo } from 'react'
 import { useStore } from '../store/store'
 import { resyncCredential, startInspection } from '../store/actions'
 import { attentionOf, routedModelName } from '../lib/derive'
-import { formatDateTime, formatDuration, formatRelative, formatSeconds } from '../lib/format'
+import { formatClockPrecise, formatDateTime, formatDateTimePrecise, formatDuration, formatSeconds } from '../lib/format'
 import { countRetries, REASON_DESC, REASON_LABEL, VERDICT_LABEL, testLabel } from '../lib/rules'
 import { Chip, Collapse, Icon, Modal, SecretName } from '../components/ui'
 import { routingFor } from '../lib/routing'
 import { methodLabel } from '../inspection'
 import { FingerprintEvidencePanel } from './FingerprintEvidencePanel'
+import type { RequestAttempt } from '../types'
+
+export function RequestAttempts({ attempts }: { attempts: RequestAttempt[] }) {
+  return <table className="attempts">
+    <thead>
+      <tr>
+        <th style={{ width: 46 }}>次序</th>
+        <th style={{ width: 74 }}>状态</th>
+        <th style={{ width: 150 }}>时间 / 耗时</th>
+        <th style={{ width: 96 }}>重试等待</th>
+        <th>说明</th>
+      </tr>
+    </thead>
+    <tbody>
+      {attempts.map((attempt) => (
+        <tr key={attempt.index}>
+          <td>#{attempt.index}</td>
+          <td><span className={`badge-code ${attempt.status === 200 ? 'is-ok' : typeof attempt.status === 'number' ? 'is-err' : ''}`}>{attempt.status}</span></td>
+          <td className="mono" style={{ fontSize: 10.5, whiteSpace: 'nowrap' }}>
+            <div>开始 <time dateTime={attempt.at} title={formatDateTimePrecise(attempt.at)}>{formatClockPrecise(attempt.at)}</time></div>
+            <div>结束 {attempt.finishedAt ? <time dateTime={attempt.finishedAt} title={formatDateTimePrecise(attempt.finishedAt)}>{formatClockPrecise(attempt.finishedAt)}</time> : '—'}</div>
+            <div>耗时 {formatDuration(attempt.durationMs)}</div>
+          </td>
+          <td>{attempt.waitMs ? formatSeconds(attempt.waitMs) : '—'}</td>
+          <td style={{ color: 'var(--text-3)' }}>
+            {attempt.localState ? 'CPA 本地冷却 / 未发送上游' : attempt.test
+              ? `${methodLabel(attempt.test)} · 第 ${attempt.challengeIndex} 题 · ${attempt.retryIndex ? `共用重试 #${attempt.retryIndex}` : '首次请求'}${attempt.validResponse === false && attempt.status === 200 ? ' · 无效回答' : ''}`
+              : attempt.index === 1 ? '首次请求' : attempt.status === 200 ? '重试成功' : '服务错误'}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+}
 
 export function EvidenceSheet() {
   const state = useStore()
@@ -191,10 +225,11 @@ export function EvidenceSheet() {
           {round.evidence.serviceError && (
             <div className="ev-section">
               <h4>
-                服务错误
+                频繁请求异常
                 <Chip tone={round.outcome === 'downshift' ? 'downshift' : 'uncertain'}>
-                  最近 {round.evidence.serviceError.windowSize} 轮中{' '}
-                  {round.evidence.serviceError.errorRoundsInWindow} 轮出现
+                  {round.evidence.serviceError.trigger === 'attempts'
+                    ? `本轮 ${round.evidence.serviceError.errorAttempts ?? round.evidence.serviceError.codes.length} 次异常`
+                    : `连续 ${round.evidence.serviceError.errorRoundsInWindow}/${round.evidence.serviceError.windowSize} 轮`}
                 </Chip>
               </h4>
               <p className="note" style={{ marginTop: 0 }}>
@@ -204,49 +239,15 @@ export function EvidenceSheet() {
                     {code}
                   </span>
                 ))}
-                。502 与 503 交替出现计入同一类重复失败。
+                。502、503、429 混合计入同一类频繁异常。
+                {round.evidence.serviceError.trigger === 'attempts' && ` 本轮达到 ${round.evidence.serviceError.requestThreshold ?? 3} 次门槛，直接归入降档。`}
               </p>
             </div>
           )}
 
           <div className="ev-section">
             <h4>请求与重试</h4>
-            <table className="attempts">
-              <thead>
-                <tr>
-                  <th style={{ width: 46 }}>次序</th>
-                  <th style={{ width: 74 }}>状态</th>
-                  <th style={{ width: 96 }}>重试等待</th>
-                  <th>说明</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attempts.map((attempt) => (
-                  <tr key={attempt.index}>
-                    <td>#{attempt.index}</td>
-                    <td>
-                      <span
-                        className={`badge-code ${
-                          attempt.status === 200 ? 'is-ok' : typeof attempt.status === 'number' ? 'is-err' : ''
-                        }`}
-                      >
-                        {attempt.status}
-                      </span>
-                    </td>
-                    <td>{attempt.waitMs ? formatSeconds(attempt.waitMs) : '—'}</td>
-                    <td style={{ color: 'var(--text-3)' }}>
-                      {attempt.test
-                        ? `${methodLabel(attempt.test)} · 第 ${attempt.challengeIndex} 题 · ${attempt.retryIndex ? `共用重试 #${attempt.retryIndex}` : '首次请求'}${attempt.validResponse === false && attempt.status === 200 ? ' · 无效回答' : ''}`
-                        : attempt.index === 1
-                        ? '首次请求'
-                        : attempt.status === 200
-                          ? '重试成功'
-                          : '服务错误'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RequestAttempts attempts={attempts} />
             <p className="note">
               本轮选定检测方式的所有题目共用重试次数，成功题不重复。
               {round.evidence.usage
@@ -256,7 +257,7 @@ export function EvidenceSheet() {
             {round.evidence.errors.length > 0 && (
               <p className="note">
                 <b>错误记录：</b>
-                {round.evidence.errors.map((e) => `${e.code} ${e.message}（${formatRelative(e.at)}）`).join('；')}
+                {round.evidence.errors.map((e) => `${e.code} ${e.message}（${formatDateTimePrecise(e.at)}）`).join('；')}
               </p>
             )}
           </div>
@@ -335,7 +336,7 @@ export function EvidenceSheet() {
 
           <div className="disclaimer">
             行为测试只能说明“本轮回答与参考分布的接近程度”，不能确认底层实际模型身份。结论用于分流与排查，
-            不构成对服务方模型路由的最终判定。认证、额度与排队问题不会被记为降档。
+            不构成对服务方模型路由的最终判定。认证失效和本地额度预检不计入频繁异常；实际巡检中的重复 502/503/429 按异常规则分组。
           </div>
         </>
       )}

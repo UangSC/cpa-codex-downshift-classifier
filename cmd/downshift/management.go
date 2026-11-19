@@ -31,7 +31,7 @@ type managementResponse struct {
 func managementRegistration() (any, error) {
 	routes := []map[string]string{}
 	// CPA plugin management routes are fixed paths and reject :param / *wildcard.
-	for _, item := range [][2]string{{"GET", "/snapshot"}, {"POST", "/checks"}, {"GET", "/tasks"}, {"POST", "/tasks/cancel"}, {"POST", "/sync"}, {"PUT", "/settings"}, {"PUT", "/routing"}, {"POST", "/exclusions"}} {
+	for _, item := range [][2]string{{"GET", "/snapshot"}, {"POST", "/checks"}, {"POST", "/quota/refresh"}, {"GET", "/tasks"}, {"POST", "/tasks/cancel"}, {"POST", "/sync"}, {"PUT", "/settings"}, {"PUT", "/routing"}, {"POST", "/exclusions"}} {
 		routes = append(routes, map[string]string{"method": item[0], "path": apiPrefix + item[1]})
 	}
 	resources := []map[string]string{{"path": "/ui", "menu": "Codex 降档检测与分类", "description": "真实 Codex 凭证巡检、分类与优先级路由"}}

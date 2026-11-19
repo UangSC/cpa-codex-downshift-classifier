@@ -8,6 +8,7 @@ export const ENDPOINTS = {
   cancelTask: (id: string) => `${ROOT}/tasks/cancel?id=${encodeURIComponent(id)}`,
   sync: `${ROOT}/sync`, settings: `${ROOT}/settings`, routing: `${ROOT}/routing`,
   exclusions: `${ROOT}/exclusions`,
+  quotaRefresh: `${ROOT}/quota/refresh`,
 } as const
 
 export interface Capabilities {
@@ -49,6 +50,8 @@ export interface StartChecksResponse { taskId: string }
 export interface RoutingRequest { credentialId: string; priority?: number; weight?: number; reset?: boolean }
 export interface SyncRequest { credentialId: string }
 export interface ExclusionRequest { credentialIds: string[]; excluded: boolean }
+export interface QuotaRefreshRequest { credentialIds: string[] }
+export interface QuotaRefreshResponse { refreshedIds: string[]; failed: { credentialId: string; error: string }[] }
 export interface SyncResponse { status: 'synced' | 'failed'; appliedGroup: 'normal' | 'downshift' | null; message: string | null }
 export interface Backend {
   readonly kind: 'plugin'
@@ -60,6 +63,7 @@ export interface Backend {
   saveSettings(settings: Settings, acknowledgeScheduledConfigChanges?: boolean): Promise<void>
   saveRouting(request: RoutingRequest): Promise<void>
   setExclusions(request: ExclusionRequest): Promise<void>
+  refreshQuota(request: QuotaRefreshRequest): Promise<QuotaRefreshResponse>
 }
 
 export { decodeManagementStorage, readStoredManagementKey } from './auth'

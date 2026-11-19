@@ -5140,3 +5140,15 @@ body {
   background: transparent;
   box-shadow: none;
 }
+
+.inspection-method-switch { flex: 0 0 auto; }
+.inspection-method-switch button:disabled { opacity: .55; cursor: default; }
+.inspection-concurrency { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.inspection-concurrency .input { width: 52px; padding-inline: 6px; text-align: center; font-variant-numeric: tabular-nums; }
+.quota-refresh-button.is-refreshing svg { animation: quota-refresh-spin 1s linear infinite; }
+@keyframes quota-refresh-spin { to { transform: rotate(360deg); } }
+@media (max-width: 720px) {
+  .toolbar .search { flex-basis: 100%; min-width: 0; }
+  .head-actions .quota-refresh-button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .quota-refresh-button.is-refreshing svg { animation: none; } }

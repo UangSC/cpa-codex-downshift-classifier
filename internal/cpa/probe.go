@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -44,11 +47,11 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 	if err != nil {
 		return reply, err
 	}
-	if runtime.Disabled {
-		return ProbeReply{Status: 403, Error: "CPA 已禁用此凭证"}, nil
+	if runtime.Disabled || strings.EqualFold(strings.TrimSpace(runtime.StatusMessage), "token expired") {
+		return ProbeReply{Status: 403, Error: "CPA 已禁用此凭证或认证失效", LocalState: true}, nil
 	}
-	if runtime.Unavailable {
-		return ProbeReply{Status: 429, Error: "CPA 凭证当前不可用或正在冷却"}, nil
+	if runtimeUnavailable(runtime, time.Now()) {
+		return ProbeReply{Status: 429, Error: "CPA 凭证当前不可用或正在冷却，未发送上游请求", LocalState: true, RetryAfterMs: runtimeCooldownMillis(runtime, time.Now())}, nil
 	}
 	if strings.TrimSpace(model) == "" || strings.TrimSpace(prompt) == "" {
 		return reply, errors.New("模型和检测题目不能为空")
@@ -65,16 +68,19 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 		return reply, err
 	}
 	var stream struct {
-		Status int    `json:"status_code"`
-		ID     string `json:"stream_id"`
+		Status  int         `json:"status_code"`
+		ID      string      `json:"stream_id"`
+		Headers http.Header `json:"headers"`
 	}
 	// CPA sdk/translator.FormatOpenAIResponse is "openai-response";
 	// translator.FromString does not normalize aliases such as "responses".
 	err = c.host("host.model.execute_stream", map[string]any{"entry_protocol": "openai-response", "exit_protocol": "openai-response", "model": model, "forced_provider": "codex", "auth_id": id, "stream": true, "headers": requestHeaders(overrides), "body": body}, &stream)
 	if err != nil {
-		return probeHostError(err, time.Since(started).Milliseconds())
+		reply, probeErr := probeHostError(err, time.Since(started).Milliseconds())
+		return c.withRuntimeCooldown(ctx, account.Index, id, reply), probeErr
 	}
 	reply.Status = stream.Status
+	reply.RetryAfterMs = retryAfterMillis(stream.Headers, time.Now())
 	if reply.Status == 0 {
 		reply.Status = 200
 	}
@@ -84,7 +90,7 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 		if reply.Status == 200 {
 			return reply, errors.New(reply.Error)
 		}
-		return reply, nil
+		return c.withRuntimeCooldown(ctx, account.Index, id, reply), nil
 	}
 	defer c.host("host.model.stream_close", map[string]string{"stream_id": stream.ID}, nil)
 	if err := ctx.Err(); err != nil {
@@ -119,7 +125,8 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 			return reply, ctx.Err()
 		}
 		if next.err != nil {
-			return probeHostError(next.err, time.Since(started).Milliseconds())
+			reply, probeErr := probeHostError(next.err, time.Since(started).Milliseconds())
+			return c.withRuntimeCooldown(ctx, account.Index, id, reply), probeErr
 		}
 		if err := collected.writeChunk(next.chunk.Payload); err != nil {
 			return reply, errors.New("检测响应超过 8 MiB 限制")
@@ -133,7 +140,7 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 	}
 	reply.DurationMs = time.Since(started).Milliseconds()
 	if reply.Status < 200 || reply.Status >= 300 {
-		return reply, nil
+		return c.withRuntimeCooldown(ctx, account.Index, id, reply), nil
 	}
 	answer, input, output, err := collected.answer()
 	if err != nil {
@@ -155,7 +162,73 @@ func probeHostError(err error, duration int64) (ProbeReply, error) {
 	if status < 400 || status > 599 {
 		return ProbeReply{DurationMs: duration}, errors.New("CPA 定向检测连接或宿主回调失败")
 	}
-	return ProbeReply{Status: status, DurationMs: duration, Error: fmt.Sprintf("CPA 定向检测返回 HTTP %d", status)}, nil
+	reply := ProbeReply{Status: status, DurationMs: duration, Error: fmt.Sprintf("CPA 定向检测返回 HTTP %d", status)}
+	if status == 429 {
+		var payload struct {
+			Error *struct {
+				Code         string          `json:"code"`
+				ResetSeconds json.RawMessage `json:"reset_seconds"`
+			} `json:"error"`
+		}
+		// 只识别宿主明确的结构化冷却码，消息提及 cooldown 不构成证据。
+		if json.Unmarshal([]byte(err.Error()), &payload) == nil && payload.Error != nil && payload.Error.Code == "model_cooldown" {
+			reply.LocalState = true
+			reply.Error = "CPA 模型处于官方冷却，未发送上游请求"
+			if seconds, parseErr := strconv.ParseFloat(string(payload.Error.ResetSeconds), 64); parseErr == nil && seconds > 0 {
+				const maxDelay = int64(1<<63 - 1)
+				if seconds >= float64(maxDelay)/1000 {
+					reply.RetryAfterMs = maxDelay
+				} else {
+					reply.RetryAfterMs = int64(math.Ceil(seconds * 1000))
+				}
+			}
+		}
+	}
+	return reply, nil
+}
+
+// 真实HTTP异常后读取官方冷却期限；即使 RPC 错误没有响应头也能尊重宿主
+// 的调度状态。读取失败不改写已取得的HTTP证据，下次预检会再次确认状态。
+func (c *Client) withRuntimeCooldown(ctx context.Context, index, id string, reply ProbeReply) ProbeReply {
+	if reply.LocalState || (reply.Status != 502 && reply.Status != 503 && reply.Status != 429) {
+		return reply
+	}
+	if auth, err := c.runtime(ctx, index, id); err == nil {
+		if minimum := runtimeCooldownMillis(auth, time.Now()); minimum > reply.RetryAfterMs {
+			reply.RetryAfterMs = minimum
+		}
+	}
+	return reply
+}
+
+// CPA 的流响应会传递响应头；当前 RPC 错误信封只有状态码和消息，不含头。
+// 只读取宿主实际提供的 Retry-After，不推测错误消息中的重试时间。
+func retryAfterMillis(headers http.Header, now time.Time) int64 {
+	var delay int64
+	for key, values := range headers {
+		if !strings.EqualFold(key, "Retry-After") {
+			continue
+		}
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if seconds, err := strconv.ParseUint(value, 10, 63); err == nil {
+				const maxDelay = int64(1<<63 - 1)
+				candidate := maxDelay
+				if seconds <= uint64(maxDelay/1000) {
+					candidate = int64(seconds) * 1000
+				}
+				if candidate > delay {
+					delay = candidate
+				}
+			} else if deadline, err := http.ParseTime(value); err == nil {
+				candidate := deadline.Sub(now).Milliseconds()
+				if candidate > delay {
+					delay = candidate
+				}
+			}
+		}
+	}
+	return delay
 }
 
 type completedResponse struct {

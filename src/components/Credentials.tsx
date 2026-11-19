@@ -574,7 +574,10 @@ function PoolColumn({
   )
 }
 
-export function CredentialPools({ views, runtime, resetKey = '' }: { views: CredentialView[]; runtime: CredentialRuntime; resetKey?: string }) {
+export function CredentialPools({ views, runtime, resetKey = '', onVisibleCredentialIdsChange }: {
+  views: CredentialView[]; runtime: CredentialRuntime; resetKey?: string
+  onVisibleCredentialIdsChange?: (ids: string[]) => void
+}) {
   const pageSize = runtime.settings.pagination?.pool ?? 4
   const key = `${resetKey}|${pageSize}`
   const [position, setPosition] = useState<{ key: string; pages: Record<PoolKey, number> }>({ key, pages: { normal: 0, uncertain: 0, downshift: 0 } })
@@ -586,6 +589,14 @@ export function CredentialPools({ views, runtime, resetKey = '' }: { views: Cred
   const uncertain = [...uncertainOnly, ...untested]
 
   const pages = position.key === key ? position.pages : { normal: 0, uncertain: 0, downshift: 0 }
+  const visibleKey = JSON.stringify([
+    ...credentialPage(normal, pages.normal, pageSize).items,
+    ...credentialPage(uncertain, pages.uncertain, pageSize).items,
+    ...credentialPage(downshift, pages.downshift, pageSize).items,
+  ].map((view) => view.credential.id))
+  useEffect(() => {
+    onVisibleCredentialIdsChange?.(JSON.parse(visibleKey) as string[])
+  }, [visibleKey, onVisibleCredentialIdsChange])
   useEffect(() => {
     const next = { normal: credentialPage(normal, pages.normal, pageSize).page, uncertain: credentialPage(uncertain, pages.uncertain, pageSize).page, downshift: credentialPage(downshift, pages.downshift, pageSize).page }
     if (position.key !== key || next.normal !== pages.normal || next.uncertain !== pages.uncertain || next.downshift !== pages.downshift) setPosition({ key, pages: next })

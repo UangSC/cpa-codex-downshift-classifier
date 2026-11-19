@@ -26,6 +26,8 @@ type Client struct {
 	headersMu              sync.Mutex
 	apiBase, managementKey string
 	http                   *http.Client
+	quotaCache             map[string]Quota
+	quotaSlots             chan struct{}
 }
 
 func New(host HostCall, opts Options) (*Client, error) {
@@ -44,7 +46,7 @@ func New(host HostCall, opts Options) (*Client, error) {
 		return nil, errors.New("CPA API 地址必须使用回环 IP，不能使用外部地址或域名")
 	}
 	transport := &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext, MaxIdleConns: 8, IdleConnTimeout: 60 * time.Second}
-	return &Client{host: host, apiBase: strings.TrimRight(opts.APIBase, "/"), managementKey: opts.ManagementKey, http: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("CPA 管理接口不允许重定向") }}}, nil
+	return &Client{host: host, apiBase: strings.TrimRight(opts.APIBase, "/"), managementKey: opts.ManagementKey, quotaCache: map[string]Quota{}, quotaSlots: make(chan struct{}, 2), http: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("CPA 管理接口不允许重定向") }}}, nil
 }
 
 func (c *Client) Close() { c.http.CloseIdleConnections() }

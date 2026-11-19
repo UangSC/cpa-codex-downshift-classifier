@@ -7,7 +7,7 @@
  * *target*, because a single model name is what a test can actually probe.
  *
  * These types are the single boundary between the UI and any backend. See
- * `src/api/types.ts` for the HTTP-shaped projection of the same data.
+ * `src/api/contract.ts` for the HTTP-shaped projection of the same data.
  */
 
 /** The behavioural tests this plugin can run. */
@@ -17,7 +17,7 @@ export type ReasoningEffort = 'low' | 'medium' | 'high'
 /**
  * Conclusion of an inspection for one target.
  * - `normal`    — every selected test passed in a complete round
- * - `downshift` — a rule fired: candy mismatch, fingerprint anomaly, repeated 5xx
+ * - `downshift` — a rule fired: candy mismatch, fingerprint anomaly, repeated 502/503/429
  * - `uncertain` — evidence missing/insufficient, first service error, partial round
  * - `untested`  — never inspected, or no usable data
  */
@@ -54,6 +54,8 @@ export interface QuotaWindow {
 
 export interface Quota {
   windows: QuotaWindow[]
+  /** 后台额度观测时间；未提供时不推测数据的新鲜度。 */
+  observedAt?: string
   /** `unknown` means every window is missing data — never treat it as 0%. */
   status: 'known' | 'unknown' | 'exhausted'
 }
@@ -61,10 +63,13 @@ export interface Quota {
 /* --------------------------------------------------------------- evidence */
 
 export interface RequestAttempt {
+  /** CPA 本地守卫结束请求，此状态未收到上游响应。 */
+  localState?: boolean
   /** 1-based attempt number within the round. */
   index: number
   status: number | 'network-error'
   at: string
+  finishedAt?: string
   /** The backoff delay waited before this attempt; 0 for the first attempt. */
   waitMs: number
   durationMs: number
@@ -138,9 +143,12 @@ export interface FingerprintEvidence {
 export interface ServiceErrorEvidence {
   /** HTTP statuses observed across the round, in order. */
   codes: number[]
-  /** Rounds (including this one) inside the judgement window that carried a 5xx. */
+  /** 判定窗口内出现 502、503 或 429 的失败轮次数，包括当前轮。 */
   errorRoundsInWindow: number
   windowSize: number
+  errorAttempts?: number
+  requestThreshold?: number
+  trigger?: 'attempts' | 'rounds'
 }
 
 export interface RoundEvidence {
@@ -257,6 +265,8 @@ export interface RunItem {
   finishedAt: string | null
   attempt: number
   currentTest: TestKind | null
+  lastStatus?: number | string
+  retryAt?: string | null
 }
 
 export interface InspectionTask {
@@ -327,8 +337,8 @@ export interface Settings {
   routing: RoutingSettings
   inspectionMethod: TestKind
   retry: RetryPolicy
-  /** A target is judged downshift when every one of the last N rounds carried a 5xx. */
-  failureRule: { windowRounds: number }
+  /** 单轮达到请求阈值，或连续窗口内各轮以 502/503/429 失败时降档。 */
+  failureRule: { windowRounds: number; requestThreshold: number }
   quota: QuotaGate
   concurrency: { maxObjects: number }
   /**

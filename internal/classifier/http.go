@@ -54,6 +54,12 @@ func (s *Service) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			result = map[string]string{"taskId": id}
 		}
+	case path == "/quota/refresh" && r.Method == "POST":
+		var q QuotaRefreshRequest
+		err = decode(w, r, &q)
+		if err == nil {
+			result, err = s.RefreshQuotas(r.Context(), q)
+		}
 	case path == "/settings" && r.Method == "PUT":
 		var q Settings
 		err = decode(w, r, &q)

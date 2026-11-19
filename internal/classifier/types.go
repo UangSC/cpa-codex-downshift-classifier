@@ -45,7 +45,8 @@ type Settings struct {
 		BackoffFactor float64 `json:"backoffFactor"`
 	} `json:"retry"`
 	FailureRule struct {
-		WindowRounds int `json:"windowRounds"`
+		WindowRounds     int `json:"windowRounds"`
+		RequestThreshold int `json:"requestThreshold"`
 	} `json:"failureRule"`
 	Quota struct {
 		MinRemainingPercent float64 `json:"minRemainingPercent"`
@@ -76,12 +77,13 @@ func DefaultSettings() Settings {
 	s.HeaderOverrides = map[string]string{}
 	s.Pagination = Pagination{List: 10, Card: 8, Pool: 4}
 	s.Retry.MaxRetries = 2
-	s.Retry.BaseDelayMs = 2000
+	s.Retry.BaseDelayMs = 5000
 	s.Retry.BackoffFactor = 2
 	s.FailureRule.WindowRounds = 2
+	s.FailureRule.RequestThreshold = 3
 	s.Quota.MinRemainingPercent = 15
 	s.Quota.UnknownPolicy = "check"
-	s.Concurrency.MaxObjects = 3
+	s.Concurrency.MaxObjects = 4
 	s.Layout = "pool"
 	s.Theme = "light"
 	s.Schedule = Schedule{Mode: "interval", IntervalMinutes: 60, DailyTime: "09:00", Windows: []TimeWindow{{"daytime", 540, 1080}}}
@@ -136,6 +138,8 @@ type Attempt struct {
 	ChallengeIndex int    `json:"challengeIndex"`
 	RetryIndex     int    `json:"retryIndex"`
 	ValidResponse  bool   `json:"validResponse"`
+	FinishedAt     string `json:"finishedAt,omitempty"`
+	LocalState     bool   `json:"localState,omitempty"`
 }
 type EvidenceError struct {
 	At      string `json:"at"`
@@ -185,9 +189,12 @@ type Usage struct {
 	OutputTokens int `json:"outputTokens"`
 }
 type ServiceErrors struct {
-	Codes               []int `json:"codes"`
-	ErrorRoundsInWindow int   `json:"errorRoundsInWindow"`
-	WindowSize          int   `json:"windowSize"`
+	Codes               []int  `json:"codes"`
+	ErrorRoundsInWindow int    `json:"errorRoundsInWindow"`
+	WindowSize          int    `json:"windowSize"`
+	ErrorAttempts       int    `json:"errorAttempts,omitempty"`
+	RequestThreshold    int    `json:"requestThreshold,omitempty"`
+	Trigger             string `json:"trigger,omitempty"`
 }
 type Evidence struct {
 	Tests        []string        `json:"tests"`
@@ -223,6 +230,8 @@ type RunItem struct {
 	FinishedAt  *string `json:"finishedAt"`
 	Attempt     int     `json:"attempt"`
 	CurrentTest *string `json:"currentTest"`
+	LastStatus  any     `json:"lastStatus,omitempty"`
+	RetryAt     *string `json:"retryAt,omitempty"`
 }
 type Task struct {
 	ID          string    `json:"id"`
@@ -242,6 +251,7 @@ type Record struct {
 	OriginalPrefix     *string           `json:"originalPrefix,omitempty"`
 	InspectionExcluded bool              `json:"inspectionExcluded"`
 	ExcludedAt         *string           `json:"excludedAt"`
+	RefreshedQuota     *cpa.Quota        `json:"refreshedQuota,omitempty"`
 }
 type diskState struct {
 	Version                            int                `json:"version"`
@@ -253,10 +263,11 @@ type diskState struct {
 	ScheduleConsentRequired            bool               `json:"scheduleConsentRequired,omitempty"`
 }
 type Capabilities struct {
-	RoutingStrategy      string `json:"routingStrategy"`
-	WeightEditingEnabled bool   `json:"weightEditingEnabled"`
-	FingerprintAvailable bool   `json:"fingerprintAvailable"`
-	AvailabilityKnown    bool   `json:"availabilityKnown"`
+	RoutingStrategy       string `json:"routingStrategy"`
+	WeightEditingEnabled  bool   `json:"weightEditingEnabled"`
+	FingerprintAvailable  bool   `json:"fingerprintAvailable"`
+	AvailabilityKnown     bool   `json:"availabilityKnown"`
+	QuotaRefreshAvailable bool   `json:"quotaRefreshAvailable"`
 }
 type Snapshot struct {
 	Credentials           []Credential             `json:"credentials"`

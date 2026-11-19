@@ -39,6 +39,26 @@ export function formatDateTime(iso: string | null): string {
   )}`
 }
 
+const preciseShanghaiTime = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+
+/** 请求尝试使用完整记录时间，不把短间隔的多个错误都压成“刚刚”。 */
+export function formatDateTimePrecise(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return '—'
+  const parts = preciseShanghaiTime.formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}.${String(date.getUTCMilliseconds()).padStart(3, '0')}`
+}
+
+export function formatClockPrecise(iso: string | null | undefined): string {
+  const formatted = formatDateTimePrecise(iso)
+  return formatted === '—' ? formatted : formatted.slice(11)
+}
+
 /** Future timestamps get their own phrasing so "下一次执行" never reads like history. */
 export function formatCountdown(iso: string | null, now = Date.now()): string {
   if (!iso) return '—'

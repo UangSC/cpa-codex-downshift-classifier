@@ -11,22 +11,23 @@ import (
 )
 
 type hostAuth struct {
-	ID            string `json:"id"`
-	Index         string `json:"auth_index"`
-	Name          string `json:"name"`
-	Label         string `json:"label"`
-	Email         string `json:"email"`
-	Provider      string `json:"provider"`
-	Type          string `json:"type"`
-	Status        string `json:"status"`
-	StatusMessage string `json:"status_message"`
-	AccountType   string `json:"account_type"`
-	Disabled      bool   `json:"disabled"`
-	Unavailable   bool   `json:"unavailable"`
-	Priority      int    `json:"priority"`
-	Weight        *int   `json:"weight"`
-	Prefix        string `json:"prefix"`
-	Quota         struct {
+	ID             string    `json:"id"`
+	Index          string    `json:"auth_index"`
+	Name           string    `json:"name"`
+	Label          string    `json:"label"`
+	Email          string    `json:"email"`
+	Provider       string    `json:"provider"`
+	Type           string    `json:"type"`
+	Status         string    `json:"status"`
+	StatusMessage  string    `json:"status_message"`
+	AccountType    string    `json:"account_type"`
+	Disabled       bool      `json:"disabled"`
+	Unavailable    bool      `json:"unavailable"`
+	NextRetryAfter time.Time `json:"next_retry_after"`
+	Priority       int       `json:"priority"`
+	Weight         *int      `json:"weight"`
+	Prefix         string    `json:"prefix"`
+	Quota          struct {
 		Signals    map[string]string `json:"signals"`
 		ObservedAt time.Time         `json:"observed_at"`
 	} `json:"quota"`
@@ -88,7 +89,7 @@ func (c *Client) ListCredentials(ctx context.Context) ([]Credential, error) {
 		if runtimeErr != nil {
 			return nil, runtimeErr
 		}
-		a.Disabled, a.Unavailable = runtime.Disabled, runtime.Unavailable
+		a.Disabled, a.Unavailable = runtime.Disabled, runtimeUnavailable(runtime, time.Now())
 		a.Status, a.StatusMessage = runtime.Status, runtime.StatusMessage
 		var stored struct {
 			JSON json.RawMessage `json:"json"`
@@ -156,7 +157,7 @@ func (c *Client) ListCredentials(ctx context.Context) ([]Credential, error) {
 		if strings.EqualFold(strings.TrimSpace(a.StatusMessage), "token expired") {
 			auth = "expired"
 		}
-		out = append(out, Credential{ID: a.ID, AuthIndex: a.Index, Name: name, File: a.Name, Plan: plan, Prefix: prefix, Priority: priority, Weight: weight, Disabled: a.Disabled, Unavailable: a.Unavailable, Auth: auth, Availability: "unknown", Models: ids, Quota: parseQuotaSignals(a.Quota.Signals, a.Quota.ObservedAt)})
+		out = append(out, Credential{ID: a.ID, AuthIndex: a.Index, Name: name, File: a.Name, Plan: plan, Prefix: prefix, Priority: priority, Weight: weight, Disabled: a.Disabled, Unavailable: a.Unavailable, Auth: auth, Availability: "unknown", Models: ids, Quota: c.currentQuota(a.ID, parseQuotaSignals(a.Quota.Signals, a.Quota.ObservedAt))})
 	}
 	return out, nil
 }
@@ -172,4 +173,24 @@ func (c *Client) runtime(ctx context.Context, index, id string) (hostAuth, error
 		return hostAuth{}, errors.New("无法确认 Codex 凭证当前运行状态")
 	}
 	return response.Auth, nil
+}
+
+// CPA 在下一次调度前可能仍保留 Unavailable；只有官方冷却期限已到期时
+// 才将选择权交回宿主，禁用和认证失效不会因此被解除。
+func runtimeUnavailable(auth hostAuth, now time.Time) bool {
+	if !auth.Unavailable {
+		return false
+	}
+	if auth.Disabled || strings.EqualFold(strings.TrimSpace(auth.StatusMessage), "token expired") {
+		return true
+	}
+	return auth.NextRetryAfter.IsZero() || auth.NextRetryAfter.After(now)
+}
+
+func runtimeCooldownMillis(auth hostAuth, now time.Time) int64 {
+	if !auth.Unavailable || auth.NextRetryAfter.IsZero() || !auth.NextRetryAfter.After(now) {
+		return 0
+	}
+	remaining := auth.NextRetryAfter.Sub(now)
+	return int64((remaining-1)/time.Millisecond) + 1
 }

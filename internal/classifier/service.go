@@ -41,7 +41,7 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 	if err != nil {
 		loc = time.FixedZone("Asia/Shanghai", 8*3600)
 	}
-	s := &Service{adapter: adapter, path: filepath.Join(stateDir, "state.json"), ctx: ctx, cancel: cancel, tasks: map[string]context.CancelFunc{}, location: loc, state: diskState{Version: 7, Settings: DefaultSettings(), Records: map[string]*Record{}, Tasks: []Task{}}}
+	s := &Service{adapter: adapter, path: filepath.Join(stateDir, "state.json"), ctx: ctx, cancel: cancel, tasks: map[string]context.CancelFunc{}, location: loc, state: diskState{Version: 8, Settings: DefaultSettings(), Records: map[string]*Record{}, Tasks: []Task{}}}
 	raw, err := os.ReadFile(s.path)
 	if err == nil {
 		var persisted diskState
@@ -49,11 +49,23 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 			cancel()
 			return nil, fmt.Errorf("状态文件无法解析，已保留原文件：%w", err)
 		}
-		if (persisted.Version < 1 || persisted.Version > 7) || persisted.Records == nil {
+		if (persisted.Version < 1 || persisted.Version > 8) || persisted.Records == nil {
 			cancel()
 			return nil, errors.New("状态文件版本或记录结构不受支持")
 		}
 		upgradingHeaderProfile := persisted.Version < 6
+		upgradingErrorPolicy := persisted.Version < 8
+		if upgradingErrorPolicy {
+			if persisted.Settings.FailureRule.RequestThreshold == 0 {
+				persisted.Settings.FailureRule.RequestThreshold = DefaultSettings().FailureRule.RequestThreshold
+			}
+			if persisted.Settings.Retry.BaseDelayMs == 2000 && persisted.Settings.Retry.MaxRetries == 2 && persisted.Settings.Retry.BackoffFactor == 2 {
+				persisted.Settings.Retry.BaseDelayMs = DefaultSettings().Retry.BaseDelayMs
+			}
+			if persisted.Settings.Concurrency.MaxObjects == 3 {
+				persisted.Settings.Concurrency.MaxObjects = DefaultSettings().Concurrency.MaxObjects
+			}
+		}
 		if persisted.Version < 5 && persisted.Settings.ReasoningEffort == "" {
 			persisted.Settings.ReasoningEffort = "low"
 		}
@@ -126,12 +138,24 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 			linkHistoricalRounds(&persisted)
 			persisted.Version = 7
 		}
+		if upgradingErrorPolicy {
+			// 频繁429现在参与降档；旧计划未授权新的请求重试与写入规则。
+			if persisted.Settings.Schedule.Enabled {
+				persisted.Settings.Schedule.Enabled = false
+				persisted.Settings.Schedule.NextRunAt = nil
+				persisted.ScheduleConsentRequired = true
+			}
+			persisted.ScheduledConfigChangesAcknowledged = false
+			persisted.ScheduledConfigurationFingerprint = ""
+			persisted.Version = 8
+		}
 		persisted.Settings.AcknowledgeScheduledConfigChanges = false
 		s.state = persisted
 	} else if !os.IsNotExist(err) {
 		cancel()
 		return nil, err
 	}
+	restoreRefreshedQuotas(s)
 	// 重启后的任务不能继续使用上一进程的请求上下文。
 	for i := range s.state.Tasks {
 		t := &s.state.Tasks[i]
@@ -145,6 +169,7 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 					item.State = "cancelled"
 					item.Note = str("CPA 重启，本次未完成的巡检已停止")
 					item.FinishedAt = &now
+					item.RetryAt = nil
 				}
 			}
 		}

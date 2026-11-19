@@ -19,7 +19,7 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := Snapshot{Credentials: []Credential{}, Targets: []Target{}, Settings: clone(s.state.Settings), Tasks: clone(s.state.Tasks), Source: "live", SourceDetail: "来自 CPA 官方凭证与运行状态接口；未提供的额度或会话状态显示未知。模型指纹以三次数字挑战与固定参考库计算归因，目标参考概率严格高于 90% 才判正常。定时巡检时区：Asia/Shanghai。", Capabilities: Capabilities{RoutingStrategy: strategy, WeightEditingEnabled: false, FingerprintAvailable: fingerprint.Available()}}
+	out := Snapshot{Credentials: []Credential{}, Targets: []Target{}, Settings: clone(s.state.Settings), Tasks: clone(s.state.Tasks), Source: "live", SourceDetail: "来自 CPA 官方凭证与运行状态接口；未提供的额度或会话状态显示未知。模型指纹以三次数字挑战与固定参考库计算归因，目标参考概率严格高于 90% 才判正常。定时巡检时区：Asia/Shanghai。", Capabilities: Capabilities{RoutingStrategy: strategy, WeightEditingEnabled: false, FingerprintAvailable: fingerprint.Available(), QuotaRefreshAvailable: s.quotaRefreshAvailable()}}
 	out.ConfigChangesRevision = configurationFingerprint(s.state.Settings, false)
 	out.RequestHeaderProfile = cpa.DefaultRequestHeaderProfile()
 	if s.state.ScheduleConsentRequired {

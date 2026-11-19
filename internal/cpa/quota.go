@@ -12,6 +12,7 @@ func parseQuotaSignals(signals map[string]string, observed time.Time) Quota {
 	if observed.IsZero() {
 		return q
 	}
+	q.ObservedAt = observed.UTC().Format(time.RFC3339Nano)
 	// HTTP 头名不区分大小写；CPA 管理接口会保留 X-Codex-* 的规范形式。
 	// 复制后归一化，避免将真实额度误判为未知，也不修改调用方的观测数据。
 	normalized := make(map[string]string, len(signals))

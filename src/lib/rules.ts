@@ -30,13 +30,14 @@ export function retrySentence(policy: RetryPolicy): string {
   const waits = retryWaits(policy)
   if (waits.length === 0) return '本轮不重试；请求异常或无有效回答时停止本轮检测。'
   const plays = waits.map((ms) => formatSeconds(ms)).join('、')
-  return `本轮所有题目共用 ${policy.maxRetries} 次重试，依次等待 ${plays}。成功题不重复请求。`
+  return `本轮所有题目共用 ${policy.maxRetries} 次重试，按配置依次等待 ${plays}。服务端要求更长等待时会遵循该时间，成功题不重复请求。`
 }
 
-/** The exact repeated-failure condition, including the 502/503 equivalence. */
+/** 频繁异常按单轮请求优先判定，跨轮规则作为补充。 */
 export function failureRuleSentence(settings: Settings): string {
   const n = settings.failureRule.windowRounds
-  return `每轮最多重试 ${settings.retry.maxRetries} 次（同一题首次失败后最多请求 ${settings.retry.maxRetries + 1} 次）。连续 ${n} 轮巡检在重试后仍出现 502/503，才判定降档；某轮恢复成功会打断连续失败。这里的“轮”不是单次请求，502 与 503 交替也算同类失败。`
+  const threshold = settings.failureRule.requestThreshold ?? 3
+  return `本轮真实 502、503、429 累计达到 ${threshold} 次立即判定降档，混合状态也累计，无需等待多轮；未达次数门槛时，连续 ${n} 轮以同类异常失败也会降档。完整通过会打断跨轮累计；401/403、网络错误和本地预检不计入这三类异常。`
 }
 
 export function quotaWindowLabel(minPercent: number): string {
@@ -71,7 +72,7 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 
 export const VERDICT_DESC: Record<Verdict, string> = {
   normal: '一轮完整检测中所有所选测试均通过',
-  downshift: '糖果题答案不符、指纹异常，或重复 502/503 达到判定条件',
+  downshift: '糖果题答案不符、指纹异常，或频繁 502/503/429 达到判定条件',
   uncertain: '证据不足、结果待确认，或正处于错误后的重试过程',
   untested: '还没有可用的检测记录',
 }
@@ -82,8 +83,8 @@ export const REASON_LABEL: Record<ReasonCode, string> = {
   'candy-mismatch': '糖果题答案不符',
   'fingerprint-anomaly': '指纹异常',
   'fingerprint-insufficient': '指纹证据不足',
-  'repeated-service-errors': '重复服务错误',
-  'single-service-error': '本轮服务错误',
+  'repeated-service-errors': '频繁请求异常',
+  'single-service-error': '本轮请求异常',
   'auth-expired': '认证失效',
   'quota-exhausted': '额度不足',
   cancelled: '已取消',
@@ -98,9 +99,9 @@ export const REASON_DESC: Record<ReasonCode, string> = {
   'fingerprint-anomaly': '三次有效结果未满足正常条件：目标参考不匹配，或目标归因概率未严格大于 90%。',
   'fingerprint-insufficient': '不足三份有效数字序列，或请求模型尚未登记到参考库，因此本轮保持不确定。',
   'repeated-service-errors':
-    '502 与 503 交替出现也计入同一类失败；恢复需要新一轮完整检测通过，不能只靠一次请求成功。',
+    '502、503、429 混合计入同一类频繁异常。达到单轮请求门槛就停止本轮并归入降档；恢复需要新一轮完整通过。',
   'single-service-error':
-    '只有连续多轮都出现 502/503 才会判定降档；本轮暂不改变分组，下一轮会继续累计。',
+    '本轮异常尚未达到单轮次数或跨轮补充门槛，暂不改变分组；后续巡检仍按当前规则判断。',
   'auth-expired': '凭证认证失效，无法发起检测。这属于凭证状态问题，不代表模型能力下降。',
   'quota-exhausted':
     '额度已用尽或请求正在排队，无法发起检测。这属于凭证状态问题，不等于模型降档；分组保持不变。',
@@ -113,7 +114,7 @@ export const REASON_DESC: Record<ReasonCode, string> = {
 export const LIGHT_LEGEND: { tone: 'normal' | 'uncertain' | 'downshift' | 'empty'; title: string; desc: string }[] = [
   { tone: 'normal', title: '正常', desc: '该轮检测完整通过' },
   { tone: 'uncertain', title: '不确定', desc: '证据不足、结果待确认，或错误后的重试过程' },
-  { tone: 'downshift', title: '降档', desc: '答案不符、指纹异常或重复 502/503 达到判定条件' },
+  { tone: 'downshift', title: '降档', desc: '答案不符、指纹异常或频繁 502/503/429 达到判定条件' },
   { tone: 'empty', title: '无记录', desc: '没有检测记录或有效数据' },
 ]
 

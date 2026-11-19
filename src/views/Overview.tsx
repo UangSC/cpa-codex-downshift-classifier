@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
-import { evaluateEligibility, resyncCredential, startInspection } from '../store/actions'
+import { evaluateEligibility, refreshCredentialsQuota, resyncCredential, saveInspectionOptions, startInspection } from '../store/actions'
 import { buildViews, sortViews, type CredentialView } from '../lib/derive'
 import { formatRelative } from '../lib/format'
 import { LIGHT_LEGEND } from '../lib/rules'
@@ -26,6 +26,32 @@ const LAYOUTS = [
   { value: 'card', label: '卡片', title: '卡片视图：点击卡片选择' },
   { value: 'pool', label: '三栏', title: '按结论分成正常 / 不确定 / 降档三栏' },
 ] as const
+
+function InspectionConcurrency({ value, disabled }: { value: number; disabled: boolean }) {
+  const [draft, setDraft] = useState(String(value))
+  const cancelled = useRef(false)
+  useEffect(() => setDraft(String(value)), [value])
+  const commit = () => {
+    if (cancelled.current) { cancelled.current = false; return }
+    if (disabled || !draft.trim()) { setDraft(String(value)); return }
+    const parsed = Number(draft)
+    const next = Number.isFinite(parsed) ? Math.max(1, Math.min(9, Math.trunc(parsed))) : value
+    setDraft(String(next))
+    void saveInspectionOptions({ concurrency: { maxObjects: next } }).then(() => setDraft(String(useStore.getState().settings.concurrency.maxObjects)))
+  }
+  return <label className="inspection-concurrency"><span>最大并发</span>
+    <input className="input" type="number" inputMode="numeric" min={1} max={9} step={1} value={draft}
+      disabled={disabled} aria-label="最大巡检并发数" onChange={(event) => setDraft(event.target.value)} onBlur={commit}
+      onKeyDown={(event) => {
+        if (isCompositionEvent(event.nativeEvent)) return
+        if (isPlainShortcut(event.nativeEvent, 'Enter')) { event.preventDefault(); event.currentTarget.blur() }
+        if (isPlainShortcut(event.nativeEvent, 'Escape')) {
+          event.preventDefault(); event.stopPropagation(); cancelled.current = true
+          setDraft(String(value)); event.currentTarget.blur()
+        }
+      }} />
+  </label>
+}
 
 export function handleOverviewShortcut(event: KeyboardEvent, context: {
   views: CredentialView[]
@@ -116,6 +142,12 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   const paginationKey = JSON.stringify([settings.layout, pageSize, filters.search, filters.verdict, filters.sort, settings.inspectionModel])
   const [position, setPosition] = useState({ key: paginationKey, page: 0 })
   const currentPage = credentialPage(filteredViews, position.key === paginationKey ? position.page : 0, pageSize)
+  const poolResetKey = JSON.stringify([filters.search, filters.verdict, filters.sort, settings.inspectionModel, settings.pagination?.pool])
+  const [poolPage, setPoolPage] = useState<{ key: string; ids: string[] }>({ key: poolResetKey, ids: [] })
+  const capturePoolPage = useCallback((ids: string[]) => setPoolPage({ key: poolResetKey, ids }), [poolResetKey])
+  const visibleQuotaIds = settings.layout === 'pool' ? (poolPage.key === poolResetKey ? poolPage.ids : []) : currentPage.items.map((view) => view.credential.id)
+  const optionsDisabled = state.connection !== 'connected' || state.settingsSaving || state.starting
+    || Boolean(runningTask || state.settingsDraft || state.inspectionConfirmation || state.pendingSettingsConfirmation)
   useEffect(() => {
     if (position.key !== paginationKey || position.page !== currentPage.page) setPosition({ key: paginationKey, page: currentPage.page })
   }, [paginationKey, position.key, position.page, currentPage.page])
@@ -188,10 +220,17 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
             <Icon.Info />
             状态含义
           </button>
+          <button type="button" className={`btn quota-refresh-button${state.quotaRefreshing.length ? ' is-refreshing' : ''}`}
+            disabled={state.connection !== 'connected' || Boolean(state.quotaRefreshing.length) || !visibleQuotaIds.length}
+            aria-busy={Boolean(state.quotaRefreshing.length)}
+            title={`刷新当前页 ${visibleQuotaIds.length} 个凭证额度，同时最多请求 2 个`}
+            onClick={() => void refreshCredentialsQuota(visibleQuotaIds)}>
+            <Icon.Refresh />{state.quotaRefreshing.length ? '正在刷新额度…' : '刷新额度状态'}
+          </button>
           <button
             type="button"
             className="btn btn-primary"
-            disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0 || Boolean(runningTask) || eligible.length === 0}
+            disabled={state.connection !== 'connected' || state.starting || state.settingsSaving || Boolean(state.settingsDraft) || state.excluding.length > 0 || Boolean(runningTask) || eligible.length === 0}
             onClick={() => startInspection('batch')}
             title={
               runningTask
@@ -218,7 +257,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         {(
           [
             { key: 'normal', label: '正常', value: counts.normal, tone: 'normal', foot: '检测完整通过' },
-            { key: 'downshift', label: '降档', value: counts.downshift, tone: 'downshift', foot: '答案不符 / 指纹异常 / 重复 5xx' },
+            { key: 'downshift', label: '降档', value: counts.downshift, tone: 'downshift', foot: '答案不符 / 指纹异常 / 频繁服务错误' },
             { key: 'uncertain', label: '不确定', value: counts.uncertain, tone: 'uncertain', foot: '证据不足或待确认' },
             { key: 'untested', label: '未检测', value: counts.untested, tone: 'empty', foot: '还没有可用的记录' },
           ] as const
@@ -269,6 +308,14 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
       )}
 
       <div className="toolbar">
+        <div className="segmented inspection-method-switch" role="group" aria-label="巡检方式">
+          <button type="button" aria-pressed={settings.inspectionMethod === 'candy'} disabled={optionsDisabled}
+            onClick={() => void saveInspectionOptions({ inspectionMethod: 'candy' })}>糖果</button>
+          <button type="button" aria-pressed={settings.inspectionMethod === 'fingerprint'} disabled={optionsDisabled || !state.capabilities.fingerprintAvailable}
+            title={state.capabilities.fingerprintAvailable ? '使用三道数字挑战检测模型指纹' : '后端尚未提供模型指纹参考库'}
+            onClick={() => void saveInspectionOptions({ inspectionMethod: 'fingerprint' })}>指纹</button>
+        </div>
+        <InspectionConcurrency value={settings.concurrency.maxObjects} disabled={optionsDisabled} />
         <div className="search">
           <Icon.Search />
           <input
@@ -292,7 +339,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
             </button>
           </span>
         )}
-        <span className="result-count">{filteredViews.length} 个凭证</span>
         <select
           className="select"
           value={filters.sort}
@@ -359,7 +405,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
       ) : (
         <div className="view-enter" key={settings.layout}>
           {settings.layout === 'pool' ? (
-            <CredentialPools views={filteredViews} runtime={runtime} resetKey={JSON.stringify([filters.search, filters.verdict, filters.sort, settings.inspectionModel])} />
+            <CredentialPools views={filteredViews} runtime={runtime} resetKey={poolResetKey} onVisibleCredentialIdsChange={capturePoolPage} />
           ) : settings.layout === 'card' ? (
             <CredentialGrid views={currentPage.items} runtime={runtime} />
           ) : (

@@ -13,8 +13,15 @@ type QuotaWindow struct {
 }
 
 type Quota struct {
-	Windows []QuotaWindow `json:"windows"`
-	Status  string        `json:"status"`
+	Windows    []QuotaWindow `json:"windows"`
+	Status     string        `json:"status"`
+	ObservedAt string        `json:"observedAt,omitempty"`
+}
+
+// QuotaRefresher 使用宿主官方管理接口主动读取额度；不要求所有适配器实现。
+type QuotaRefresher interface {
+	RefreshQuota(context.Context, string) (Quota, error)
+	RestoreQuota(string, Quota)
 }
 
 // Credential is a sanitized host record; it never carries authentication secrets.
@@ -35,6 +42,9 @@ type ProbeReply struct {
 	InputTokens, OutputTokens int
 	Error                     string
 	DurationMs                int64
+	// LocalState 表示请求在宿主本地守卫处结束，未收到上游 HTTP 状态。
+	LocalState   bool
+	RetryAfterMs int64
 }
 
 type Fields struct {

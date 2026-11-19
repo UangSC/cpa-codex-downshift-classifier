@@ -61,7 +61,14 @@ func wait(ctx context.Context, d time.Duration) error {
 func (s *Service) inspect(ctx context.Context, cancel context.CancelFunc, task Task, q StartRequest, c cpa.Credential, v Settings, connectionFailures *atomic.Int32) {
 	tid := targetID(c.ID, q.Model)
 	skip := func(message string) {
-		s.patchItem(task.ID, tid, func(i *RunItem) { now := stamp(); i.State = "skipped"; i.Note = str(message); i.FinishedAt = &now })
+		s.patchItem(task.ID, tid, func(i *RunItem) {
+			now := stamp()
+			i.State = "skipped"
+			i.Note = str(message)
+			i.FinishedAt = &now
+			i.RetryAt = nil
+			i.CurrentTest = nil
+		})
 	}
 	// 开始执行前刷新官方状态，不能仅使用入队时的额度与认证状态。
 	waitingSince := time.Now()
@@ -121,28 +128,11 @@ func (s *Service) inspect(ctx context.Context, cancel context.CancelFunc, task T
 	s.patchItem(task.ID, tid, func(i *RunItem) { i.State = "running"; i.StartedAt = &start; i.CurrentTest = &q.Method; i.Note = nil })
 	round := newInspectionRound(task, q, tid, start, v.ReasoningEffort)
 	codes := s.executeRound(ctx, cancel, task, q, c, v, connectionFailures, &round)
-	if ctx.Err() == nil && round.Outcome == "uncertain" && len(codes) > 0 {
+	if ctx.Err() == nil && len(codes) > 0 {
 		s.mu.Lock()
 		previous := s.recordLocked(c.ID).Targets[q.Model].Rounds
 		s.mu.Unlock()
-		count := 1
-		for _, old := range previous {
-			if old.Evidence.ServiceError == nil {
-				break
-			}
-			count++
-			if count >= v.FailureRule.WindowRounds {
-				break
-			}
-		}
-		round.Evidence.ServiceError = &ServiceErrors{codes, count, v.FailureRule.WindowRounds}
-		round.ReasonCode = "single-service-error"
-		round.Reason = "本轮 502/503 服务错误重试耗尽，保持当前分组"
-		if count >= v.FailureRule.WindowRounds {
-			round.Outcome = "downshift"
-			round.ReasonCode = "repeated-service-errors"
-			round.Reason = fmt.Sprintf("连续 %d 轮巡检出现 502/503 服务错误", v.FailureRule.WindowRounds)
-		}
+		applyServiceErrorRule(&round, codes, previous, v)
 	}
 	round.FinishedAt = stamp()
 	round.Evidence.DurationMs = time.Since(mustTime(start)).Milliseconds()
@@ -159,6 +149,7 @@ func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c 
 			item.Note = str("该凭证不参与巡检，未提交判定或写入配置")
 			item.FinishedAt = &round.FinishedAt
 			item.CurrentTest = nil
+			item.RetryAt = nil
 		})
 		return
 	}
@@ -216,6 +207,7 @@ func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c 
 			}
 			item.FinishedAt = &round.FinishedAt
 			item.CurrentTest = nil
+			item.RetryAt = nil
 		}
 	}
 	if err := s.persistLocked(); err != nil {

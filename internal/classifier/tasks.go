@@ -162,6 +162,7 @@ func (s *Service) CancelTask(id string) error {
 					item.State = "cancelled"
 					item.Note = str("任务已停止；正在返回的请求不会再提交判定或修改分组")
 					item.FinishedAt = &now
+					item.RetryAt = nil
 				}
 			}
 			return s.persistLocked()
@@ -219,6 +220,7 @@ dispatch:
 				item.State = "cancelled"
 				item.FinishedAt = &now
 				item.CurrentTest = nil
+				item.RetryAt = nil
 				item.Note = str("任务已停止")
 			}
 		}

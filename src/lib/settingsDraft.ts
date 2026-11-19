@@ -68,6 +68,8 @@ export function settingsErrors(settings: Settings, managedHeaders: string[] = []
   if (!settings.inspectionModel.trim()) errors.push('检测模型不能为空')
   if (!['low', 'medium', 'high'].includes(settings.reasoningEffort)) errors.push('思考程度只能选择低、中或高')
   if (!listInspectionMethods().some((method) => method.id === settings.inspectionMethod)) errors.push('检测方式不可用')
+  if (!Number.isInteger(settings.concurrency.maxObjects) || settings.concurrency.maxObjects < 1 || settings.concurrency.maxObjects > 9) errors.push('巡检并发数应为 1～9 的整数')
+  if (!Number.isInteger(settings.failureRule.requestThreshold) || settings.failureRule.requestThreshold < 2 || settings.failureRule.requestThreshold > 5) errors.push('单轮错误请求阈值应为 2～5 的整数')
   for (const [key, limit] of [['list', 100], ['card', 100], ['pool', 24]] as const) {
     const value = settings.pagination?.[key]
     if (!Number.isInteger(value) || value < 1 || value > limit) errors.push(`${key === 'list' ? '列表' : key === 'card' ? '卡片' : '三栏每栏'}分页数量应为 1～${limit} 的整数`)
