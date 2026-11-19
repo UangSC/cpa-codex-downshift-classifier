@@ -71,6 +71,6 @@
 
 ## 刷新额度
 
-`POST /quota/refresh` 接收 `{credentialIds: ["<凭证ID>"]}`，只刷新明确提交的 Codex 凭证，同时最多执行两个额度查询。上游地址固定为 Codex 额度接口，认证令牌由 CPA 代换，浏览器不能传入上游地址或认证头。此操作不启动模型巡检、不改变凭证分类。
+`POST /quota/refresh` 接收 `{credentialIds: ["<凭证ID>"]}`，只刷新明确提交的 Codex 凭证，同时最多执行四个额度查询。上游地址固定为 Codex 额度接口，认证令牌由 CPA 代换。额度查询与模型巡检共用已保存的请求头覆盖，使用 JSON 响应类型。浏览器不能在额度刷新请求中传入上游地址或请求头。此操作不启动模型巡检、不改变凭证分类。
 
 成功返回 `{refreshedIds: ["<凭证ID>"], failed: [{credentialId: "<凭证ID>", error: "<安全错误说明>"}]}`。部分失败保持对应凭证此前的额度；成功额度持久保存，随后读取快照更新卡片。`capabilities.quotaRefreshAvailable` 表示当前适配器是否支持此操作。额度包含可选 `observedAt`，用于选择更新的主动或被动数据，过期窗口不继续显示为有效额度。

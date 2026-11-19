@@ -74,6 +74,9 @@ func (s *Service) RefreshQuotas(ctx context.Context, request QuotaRefreshRequest
 			return result, bad("刷新额度包含已删除或非 Codex 凭证")
 		}
 	}
+	s.mu.Lock()
+	headerOverrides := clone(s.state.Settings.HeaderOverrides)
+	s.mu.Unlock()
 	type outcome struct {
 		quota cpa.Quota
 		err   error
@@ -81,12 +84,12 @@ func (s *Service) RefreshQuotas(ctx context.Context, request QuotaRefreshRequest
 	outcomes := make([]outcome, len(request.CredentialIDs))
 	jobs := make(chan int)
 	var workers sync.WaitGroup
-	for worker := 0; worker < 2; worker++ {
+	for worker := 0; worker < cpa.QuotaRefreshConcurrency; worker++ {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
 			for index := range jobs {
-				outcomes[index].quota, outcomes[index].err = refresher.RefreshQuota(ctx, request.CredentialIDs[index])
+				outcomes[index].quota, outcomes[index].err = refresher.RefreshQuota(ctx, request.CredentialIDs[index], headerOverrides)
 			}
 		}()
 	}

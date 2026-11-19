@@ -118,37 +118,53 @@ type headerConfigurationError struct{ message string }
 
 func (e *headerConfigurationError) Error() string { return e.message }
 
-func (c *Client) credentialHeaderRules(ctx context.Context, account *hostAuth) (map[string]json.RawMessage, error) {
+type credentialProbeConfig struct {
+	Prefix  string                     `json:"prefix"`
+	Headers map[string]json.RawMessage `json:"headers"`
+}
+
+func (c *Client) readCredentialProbeConfig(ctx context.Context, account *hostAuth) (credentialProbeConfig, error) {
+	var data credentialProbeConfig
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return data, err
 	}
 	var stored struct {
 		JSON json.RawMessage `json:"json"`
 	}
 	if err := c.host("host.auth.get", map[string]string{"auth_index": account.Index}, &stored); err != nil {
-		return nil, &headerConfigurationError{"无法读取 CPA 凭证请求头规则"}
-	}
-	var data struct {
-		Headers map[string]json.RawMessage `json:"headers"`
+		return data, &headerConfigurationError{"无法读取 CPA 凭证请求头规则"}
 	}
 	if json.Unmarshal(stored.JSON, &data) != nil {
-		return nil, &headerConfigurationError{"CPA 凭证请求头配置格式无效"}
+		return data, &headerConfigurationError{"CPA 凭证请求头配置格式无效"}
 	}
-	if data.Headers == nil {
-		data.Headers = map[string]json.RawMessage{}
+	return data, nil
+}
+
+func (c *Client) prepareProbeModel(ctx context.Context, account *hostAuth, model string, overrides map[string]string) (string, error) {
+	c.headersMu.Lock()
+	defer c.headersMu.Unlock()
+	config, err := c.readCredentialProbeConfig(ctx, account)
+	if err != nil {
+		return "", err
 	}
-	return data.Headers, nil
+	if err := c.prepareHeaderMappings(ctx, account, config.Headers, overrides); err != nil {
+		return "", err
+	}
+	// CPA 始终为带前缀的凭证注册限定名。开启强制前缀时，裸模型名无法选中该凭证。
+	return qualifyProbeModel(model, config.Prefix), nil
+}
+
+func qualifyProbeModel(model, prefix string) string {
+	model, prefix = strings.TrimSpace(model), strings.TrimSpace(prefix)
+	if prefix != "" && !strings.HasPrefix(model, prefix+"/") {
+		return prefix + "/" + model
+	}
+	return model
 }
 
 // prepareHeaderMappings 只更改单个头的自有映射，绝不发送整个凭证或 headers:null。
-// CPA 字段接口没有头级 CAS；插件内串行检查、写入和复核，外部同时写同一键仍不能承诺原子性。
-func (c *Client) prepareHeaderMappings(ctx context.Context, account *hostAuth, overrides map[string]string) error {
-	c.headersMu.Lock()
-	defer c.headersMu.Unlock()
-	rules, err := c.credentialHeaderRules(ctx, account)
-	if err != nil {
-		return err
-	}
+// 调用方持有 headersMu，在插件内串行检查、写入和复核。
+func (c *Client) prepareHeaderMappings(ctx context.Context, account *hostAuth, rules map[string]json.RawMessage, overrides map[string]string) error {
 	byName := map[string]string{}
 	patch := map[string]string{}
 	for name, raw := range rules {
@@ -184,13 +200,13 @@ func (c *Client) prepareHeaderMappings(ctx context.Context, account *hostAuth, o
 		}
 		return &headerConfigurationError{"CPA 未能保存插件请求头映射，未执行模型请求"}
 	}
-	updated, err := c.credentialHeaderRules(ctx, account)
+	updated, err := c.readCredentialProbeConfig(ctx, account)
 	if err != nil {
 		return err
 	}
 	for name, expected := range patch {
 		found := false
-		for current, raw := range updated {
+		for current, raw := range updated.Headers {
 			if !strings.EqualFold(current, name) {
 				continue
 			}
@@ -207,13 +223,21 @@ func (c *Client) prepareHeaderMappings(ctx context.Context, account *hostAuth, o
 	return nil
 }
 
-func requestHeaders(overrides map[string]string) http.Header {
+func codexRequestHeaders(accept string, overrides map[string]string) map[string]string {
+	headers := DefaultRequestHeaderProfile().DefaultHeaders
+	for name, value := range overrides {
+		headers[name] = value
+	}
+	headers["Accept"] = accept
+	return headers
+}
+
+func probeRequestHeaders(overrides map[string]string) http.Header {
 	headers := http.Header{}
-	for name, value := range DefaultRequestHeaderProfile().DefaultHeaders {
+	for name, value := range codexRequestHeaders("text/event-stream", overrides) {
 		headers.Set(name, value)
 	}
 	for name, value := range overrides {
-		headers.Set(name, value)
 		headers.Set(privateHeaderSource(name), value)
 	}
 	return headers

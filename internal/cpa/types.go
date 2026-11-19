@@ -20,7 +20,7 @@ type Quota struct {
 
 // QuotaRefresher 使用宿主官方管理接口主动读取额度；不要求所有适配器实现。
 type QuotaRefresher interface {
-	RefreshQuota(context.Context, string) (Quota, error)
+	RefreshQuota(context.Context, string, map[string]string) (Quota, error)
 	RestoreQuota(string, Quota)
 }
 

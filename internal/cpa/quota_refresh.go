@@ -13,8 +13,18 @@ import (
 const codexQuotaURL = "https://chatgpt.com/backend-api/wham/usage"
 
 // RefreshQuota 锁定宿主凭证，再让 CPA 代换令牌并沿用该凭证的代理。
-// 只允许固定的额度 GET 请求；浏览器无法提交上游地址、请求头或认证数据。
-func (c *Client) RefreshQuota(ctx context.Context, id string) (Quota, error) {
+// 只允许固定的额度 GET 请求，公共请求头来自已保存的插件设置。
+func (c *Client) RefreshQuota(ctx context.Context, id string, headerOverrides map[string]string) (Quota, error) {
+	overrides, err := ValidateHeaderOverrides(headerOverrides)
+	if err != nil {
+		return Quota{}, err
+	}
+	for _, value := range overrides {
+		// CPA 管理接口会对所有头值展开此占位符，仅在认证头中使用它。
+		if strings.Contains(value, "$TOKEN$") {
+			return Quota{}, errors.New("额度查询的自定义请求头值不能包含 CPA 令牌占位符 $TOKEN$")
+		}
+	}
 	select {
 	case c.quotaSlots <- struct{}{}:
 		defer func() { <-c.quotaSlots }()
@@ -69,8 +79,7 @@ func (c *Client) RefreshQuota(ctx context.Context, id string) (Quota, error) {
 	if accountID == "" || len(accountID) > 256 || strings.IndexFunc(accountID, func(value rune) bool { return value <= ' ' || value >= 127 }) >= 0 {
 		return Quota{}, errors.New("CPA 未提供有效的账户标识，无法确认该凭证额度")
 	}
-	headers := DefaultRequestHeaderProfile().DefaultHeaders
-	headers["Accept"] = "application/json"
+	headers := codexRequestHeaders("application/json", overrides)
 	headers["Authorization"] = "Bearer $TOKEN$"
 	headers["Chatgpt-Account-Id"] = accountID
 	var reply struct {

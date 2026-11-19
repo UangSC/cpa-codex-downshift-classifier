@@ -56,14 +56,15 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 	if strings.TrimSpace(model) == "" || strings.TrimSpace(prompt) == "" {
 		return reply, errors.New("模型和检测题目不能为空")
 	}
-	if err := c.prepareHeaderMappings(ctx, account, overrides); err != nil {
+	routeModel, err := c.prepareProbeModel(ctx, account, model, overrides)
+	if err != nil {
 		var configuration *headerConfigurationError
 		if errors.As(err, &configuration) {
 			return ProbeReply{Status: 409, Error: configuration.Error()}, nil
 		}
 		return reply, err
 	}
-	body, err := json.Marshal(map[string]any{"model": model, "input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": prompt}}}}, "instructions": instructions, "stream": true, "store": false, "reasoning": map[string]string{"effort": effort}})
+	body, err := json.Marshal(map[string]any{"model": routeModel, "input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": prompt}}}}, "instructions": instructions, "stream": true, "store": false, "reasoning": map[string]string{"effort": effort}})
 	if err != nil {
 		return reply, err
 	}
@@ -74,7 +75,7 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, eff
 	}
 	// CPA sdk/translator.FormatOpenAIResponse is "openai-response";
 	// translator.FromString does not normalize aliases such as "responses".
-	err = c.host("host.model.execute_stream", map[string]any{"entry_protocol": "openai-response", "exit_protocol": "openai-response", "model": model, "forced_provider": "codex", "auth_id": id, "stream": true, "headers": requestHeaders(overrides), "body": body}, &stream)
+	err = c.host("host.model.execute_stream", map[string]any{"entry_protocol": "openai-response", "exit_protocol": "openai-response", "model": routeModel, "forced_provider": "codex", "auth_id": id, "stream": true, "headers": probeRequestHeaders(overrides), "body": body}, &stream)
 	if err != nil {
 		reply, probeErr := probeHostError(err, time.Since(started).Milliseconds())
 		return c.withRuntimeCooldown(ctx, account.Index, id, reply), probeErr

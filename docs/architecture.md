@@ -36,7 +36,7 @@ React 页面 → 插件管理 API → 分类服务 → CPA 官方宿主与管理
 - `candy.go` 保存糖果题和数字匹配规则。
 - `tasks.go` 管理任务入队、并发、取消与进度。
 - `inspection.go` 检查单凭证资格并保存判定、同步分类；`execution.go` 执行题目和共用的有限重试。
-- `service_errors.go` 按单轮真实请求数或连续失败轮数判定频繁 502/503/429；`quota_refresh.go` 以两个工作协程刷新明确提交的凭证并持久保存额度。
+- `service_errors.go` 按单轮真实请求数或连续失败轮数判定频繁 502/503/429；`quota_refresh.go` 以四个工作协程刷新明确提交的凭证并持久保存额度。
 - `fingerprint.go` 将三次参考归因结果映射为业务判定；`history.go` 只在任务与时间区间唯一匹配时补齐旧历史批次。
 - `settings.go`、`routing.go` 处理设置和凭证路由操作。
 - `state.go` 负责原子保存和状态辅助函数；`snapshot.go` 生成页面所需的真实状态。

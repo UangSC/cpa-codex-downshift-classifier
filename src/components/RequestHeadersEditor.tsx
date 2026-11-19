@@ -36,9 +36,9 @@ export function RequestHeadersEditor() {
     const rank = (name: string) => { const index = HEADER_ORDER.indexOf(name.toLowerCase()); return index < 0 ? HEADER_ORDER.length : index }
     return rank(a) - rank(b) || a.localeCompare(b)
   })
-  return <SettingsPanel title="请求头覆盖" desc="覆盖只用于本插件巡检；CPA 认证和路由头由宿主管理。同名已有凭证规则冲突时不强行覆盖。">
+  return <SettingsPanel title="请求头覆盖" desc="巡检与额度刷新共用已保存的覆盖项。CPA 管理认证与路由头，巡检遇到同名凭证规则会报告冲突。">
     <div className="request-header-profile"><span className="request-header-profile-icon"><Icon.Doc /></span><div>
-      <strong>默认跟随 CPA Codex CLI{profile?.codexCliVersion ? `（${profile.codexCliVersion}）` : '（待加载）'}</strong>
+      <strong>插件默认采用 Codex CLI 请求头{profile?.codexCliVersion ? `（${profile.codexCliVersion}）` : '（待加载）'}</strong>
       <p>不添加覆盖项时使用默认请求头。修改先保留为草稿，确认保存后生效。</p>
     </div></div>
     <details className="request-header-defaults" open>
@@ -53,7 +53,7 @@ export function RequestHeadersEditor() {
       <div className="request-header-value"><label htmlFor={`header-value-${row.id}`}>覆盖值</label><input id={`header-value-${row.id}`} className="input mono" value={row.value} spellCheck={false} autoComplete="off" disabled={disabled}
         aria-label={`第 ${index + 1} 项请求头覆盖值`} placeholder="请输入覆盖值" onChange={(event) => commit(rows.map((item) => item.id === row.id ? { ...item, value: event.target.value } : item))} /></div>
       <button type="button" className="icon-btn request-header-remove" disabled={disabled} aria-label={`删除第 ${index + 1} 项请求头覆盖`} onClick={() => commit(rows.filter((item) => item.id !== row.id))}><Icon.Close /></button>
-    </div>)}</div> : <div className="request-header-empty">未设置覆盖项，使用 CPA 默认请求头。</div>}
+    </div>)}</div> : <div className="request-header-empty">未设置覆盖项，使用插件默认请求头。</div>}
     <div className="request-header-actions"><button type="button" className="btn btn-sm" disabled={disabled || rows.length >= 32} onClick={() => commit([...rows, { id: `header-${++nextId.current}`, name: '', value: '' }])}>添加请求头覆盖</button>
       {rows.length > 0 && <button type="button" className="btn btn-sm btn-ghost" disabled={disabled} onClick={() => commit([])}>清空覆盖，恢复默认</button>}</div>
     {errors.length > 0 && <div className="request-header-errors" role="alert">{errors.map((error) => <p key={error}>{error}</p>)}</div>}
