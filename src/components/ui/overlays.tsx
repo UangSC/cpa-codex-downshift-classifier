@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from './icons'
+import { isCompositionEvent, isPlainShortcut } from '../../lib/keyboard'
 
 /**
  * Topmost overlay bookkeeping. Two overlays can be open at once (the run drawer with an
@@ -46,7 +47,7 @@ function focusablesIn(node: HTMLElement | null): HTMLElement[] {
 
 /** Shared Tab cycling so keyboard users never land on the page behind an overlay. */
 function trapTabKey(event: KeyboardEvent, node: HTMLElement, token: symbol): boolean {
-  if (event.key !== 'Tab' || !isTopOverlay(token)) return false
+  if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey || !isTopOverlay(token)) return false
   const list = focusablesIn(node)
   const active = document.activeElement as HTMLElement | null
   if (list.length === 0) {
@@ -149,9 +150,11 @@ export function Modal({
     const previousFocus = document.activeElement as HTMLElement | null
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isCompositionEvent(e)) return
       if (e.key === 'Escape') {
-        if (isTopOverlay(token)) {
+        if (isPlainShortcut(e, 'Escape') && isTopOverlay(token)) {
           e.preventDefault()
+          e.stopImmediatePropagation()
           closeRef.current()
         }
         return
@@ -209,6 +212,7 @@ export function Drawer({
   head,
   className,
   backdropClassName,
+  onEscape,
 }: {
   open: boolean
   onClose: () => void
@@ -218,11 +222,14 @@ export function Drawer({
   head?: ReactNode
   className?: string
   backdropClassName?: string
+  onEscape?: (event: KeyboardEvent) => boolean
 }) {
   const previousFocus = useRef<HTMLElement | null>(null)
   const ref = useRef<HTMLElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const escapeRef = useRef(onEscape)
+  escapeRef.current = onEscape
   useEffect(() => {
     if (!open) return
     const node = ref.current
@@ -230,10 +237,12 @@ export function Drawer({
     const token = Symbol('drawer')
     previousFocus.current = document.activeElement as HTMLElement | null
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isCompositionEvent(e)) return
       if (e.key === 'Escape') {
-        if (isTopOverlay(token)) {
+        if (isPlainShortcut(e, 'Escape') && isTopOverlay(token)) {
           e.preventDefault()
-          closeRef.current()
+          e.stopImmediatePropagation()
+          if (!escapeRef.current?.(e)) closeRef.current()
         }
         return
       }

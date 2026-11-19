@@ -11,6 +11,7 @@ import { Toasts } from './components/Toasts'
 import { SettingsSavePrompt } from './components/SettingsSavePrompt'
 import { InspectionConfirmationDialog } from './components/InspectionConfirmationDialog'
 import { Icon, SelectionProvider, useSelectionSet } from './components/ui'
+import { handleApplicationShortcut } from './lib/applicationShortcuts'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: '概览' },
@@ -19,6 +20,11 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 export default function App() {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => handleApplicationShortcut(event, useStore.getState())
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
   const settings = useStore((s) => s.settings)

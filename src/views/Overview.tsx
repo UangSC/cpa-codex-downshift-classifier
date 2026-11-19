@@ -10,6 +10,7 @@ import type { VerdictFilter } from '../store/store'
 import { methodLabel } from '../inspection'
 import { activeInspectionCredentialIds, setCredentialExclusions } from '../store/exclusions'
 import { ExclusionIcon } from '../components/ExclusionDrawer'
+import { hasOpenDialog, isCompositionEvent, isEditingTarget, isPlainShortcut, isPrimaryShortcut } from '../lib/keyboard'
 
 const FILTER_LABEL: Record<VerdictFilter, string> = {
   all: '全部',
@@ -25,6 +26,28 @@ const LAYOUTS = [
   { value: 'card', label: '卡片', title: '卡片视图：点击卡片选择' },
   { value: 'pool', label: '三栏', title: '按结论分成正常 / 不确定 / 降档三栏' },
 ] as const
+
+export function handleOverviewShortcut(event: KeyboardEvent, context: {
+  views: CredentialView[]
+  excluding: string[]
+  select: (ids: string[]) => void
+  focusSearch: () => void
+}): boolean {
+  if (hasOpenDialog() || isEditingTarget(event.target) || isCompositionEvent(event)) return false
+  if (isPrimaryShortcut(event, 'a')) {
+    event.preventDefault()
+    const excluding = new Set(context.excluding)
+    context.select(context.views.filter((view) => !view.credential.inspectionExcluded && !excluding.has(view.credential.id))
+      .map((view) => view.credential.id))
+    return true
+  }
+  if (isPlainShortcut(event, '/')) {
+    event.preventDefault()
+    context.focusSearch()
+    return true
+  }
+  return false
+}
 
 export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, roundId?: string | null) => void }) {
   const state = useStore()
@@ -127,22 +150,17 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
     exclusionBusyCredentialIds,
   }
 
-  // / jumps into search, like most tools people already use.
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
-      const tag = (e.target as HTMLElement | null)?.tagName
-      // Never steal the key from an open dialog or from a field the operator is typing in.
-      if (document.querySelector('[role="dialog"]')) return
-      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
-        e.preventDefault()
-        searchRef.current?.focus()
-      }
-    }
+    const onKey = (event: KeyboardEvent) => handleOverviewShortcut(event, {
+      views: filteredViews,
+      excluding: state.excluding,
+      select: state.selectTargets,
+      focusSearch: () => searchRef.current?.focus(),
+    })
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [filteredViews, state.excluding, state.selectTargets])
 
   const lastCompleted = state.tasks.find((t) => t.status === 'completed')
   const lastCheckedAt = lastCompleted?.finishedAt ?? null

@@ -3,6 +3,7 @@ import type { Credential, RoutingValues } from '../types'
 import { normalizeRoutingValue, routingFor } from '../lib/routing'
 import { useStore } from '../store/store'
 import { saveCredentialRouting } from '../store/actions'
+import { hasOpenDialog, isCompositionEvent, isPlainShortcut, isPrimaryShortcut } from '../lib/keyboard'
 
 function PriorityStepper({ value, label, onChange, disabled }: {
   value: number
@@ -15,8 +16,8 @@ function PriorityStepper({ value, label, onChange, disabled }: {
   useEffect(() => setDraft(String(value)), [value])
   const commit = () => {
     if (disabled) return
-    if (draft === '' || draft === '-') { setDraft(String(value)); return }
     if (cancelled.current) { cancelled.current = false; return }
+    if (draft === '' || draft === '-') { setDraft(String(value)); return }
     const next = normalizeRoutingValue(Number(draft), 'priority')
     setDraft(String(next))
     onChange(next)
@@ -32,8 +33,23 @@ function PriorityStepper({ value, label, onChange, disabled }: {
         }}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur()
-          if (event.key === 'Escape') { cancelled.current = true; setDraft(String(value)); event.currentTarget.blur() }
+          if (isCompositionEvent(event.nativeEvent)) return
+          // 设置页保存前先提交当前输入；概览中的优先级编辑不能借此自动写入 CPA。
+          if (isPrimaryShortcut(event.nativeEvent, 's') && useStore.getState().tab === 'settings' && !hasOpenDialog()) {
+            event.currentTarget.blur()
+          }
+          if (isPlainShortcut(event.nativeEvent, 'Enter')) {
+            event.preventDefault()
+            event.stopPropagation()
+            event.currentTarget.blur()
+          }
+          if (isPlainShortcut(event.nativeEvent, 'Escape')) {
+            event.preventDefault()
+            event.stopPropagation()
+            cancelled.current = true
+            setDraft(String(value))
+            event.currentTarget.blur()
+          }
           if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
             event.preventDefault()
             const base = Number(draft)

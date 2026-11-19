@@ -8,6 +8,7 @@ import { useStore } from '../store/store'
 import { Chip, Drawer, Icon, PlanBadge, QuotaMeter, SecretName, useNow } from './ui'
 import { StatusLights } from './StatusLights'
 import { cardIdentityAttributes } from '../lib/cardIdentity'
+import { isEditingTarget } from '../lib/keyboard'
 
 export function ExclusionIcon() {
   return <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -110,6 +111,11 @@ export function ExclusionDrawer() {
   useEffect(() => { setSelected((current) => current.filter((id) => excluded.some((credential) => credential.id === id))) }, [excluded])
   const toggle = (id: string) => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])
   return <Drawer open={present} onClose={() => close(false)} title="不参与巡检"
+    onEscape={(event) => {
+      if (isEditingTarget(event.target) || chosen.length === 0) return false
+      setSelected([])
+      return true
+    }}
     sub="这些凭证不参加手动、批量或定时巡检，仍可用于 CPA 正常请求。"
     className={`exclusion-drawer ${entered ? 'is-visible' : 'is-leaving'}`}
     backdropClassName={`exclusion-drawer-backdrop ${entered ? 'is-visible' : 'is-leaving'}`}

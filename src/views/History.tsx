@@ -1,14 +1,22 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
 import { batchScopeLabel, buildHistoryBatches, historyEntryMatches, historyEntryOutcome, type HistoryFilter } from '../lib/historyBatches'
 import { InspectionBatch } from '../components/InspectionBatch'
 import { InspectionBatchItems } from '../components/InspectionBatchItems'
 import { Chip, Icon, Segmented, useNow } from '../components/ui'
+import { hasOpenDialog, isCompositionEvent, isEditingTarget, isPlainShortcut } from '../lib/keyboard'
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'all', label: '全部' }, { value: 'normal', label: '正常' }, { value: 'downshift', label: '降档' },
   { value: 'uncertain', label: '不确定' }, { value: 'incomplete', label: '未完成' },
 ]
+
+export function handleHistoryShortcut(event: KeyboardEvent, focusSearch: () => void): boolean {
+  if (hasOpenDialog() || isEditingTarget(event.target) || isCompositionEvent(event) || !isPlainShortcut(event, '/')) return false
+  event.preventDefault()
+  focusSearch()
+  return true
+}
 
 export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string, roundId?: string | null) => void }) {
   const targets = useStore((s) => s.targets)
@@ -17,6 +25,12 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
   const [filter, setFilter] = useState<HistoryFilter>('all')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => handleHistoryShortcut(event, () => searchRef.current?.focus())
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
   const now = useNow(5_000)
   const batches = useMemo(() => buildHistoryBatches(targets, credentials, tasks), [targets, credentials, tasks])
   const batchesById = useMemo(() => new Map(batches.map((batch) => [batch.id, batch])), [batches])
@@ -41,7 +55,7 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
     <div className="toolbar">
       <div className="search">
         <Icon.Search />
-        <input type="search" placeholder="搜索凭证、模型或判定原因" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="搜索历史记录" />
+        <input ref={searchRef} type="search" placeholder="搜索凭证、模型或判定原因" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="搜索历史记录" />
       </div>
       <Segmented ariaLabel="按历史结论筛选" value={filter} onChange={setFilter} options={FILTERS.map((option) => ({
         value: option.value, label: option.label, count: counts[option.value],
