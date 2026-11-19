@@ -1,0 +1,234 @@
+package classifier
+
+import "github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+
+type RoutingValues struct {
+	Priority int `json:"priority"`
+	Weight   int `json:"weight"`
+}
+type RoutingSettings struct {
+	Mode      string                   `json:"mode"`
+	Groups    map[string]RoutingValues `json:"groups"`
+	Overrides map[string]RoutingValues `json:"overrides"`
+}
+type TimeWindow struct {
+	ID          string `json:"id"`
+	StartMinute int    `json:"startMinute"`
+	EndMinute   int    `json:"endMinute"`
+}
+type Pagination struct {
+	List int `json:"list"`
+	Card int `json:"card"`
+	Pool int `json:"pool"`
+}
+type Schedule struct {
+	Enabled         bool         `json:"enabled"`
+	Mode            string       `json:"mode"`
+	IntervalMinutes int          `json:"intervalMinutes"`
+	DailyTime       string       `json:"dailyTime"`
+	Windows         []TimeWindow `json:"windows"`
+	NextRunAt       *string      `json:"nextRunAt"`
+}
+type Settings struct {
+	Prefixes struct {
+		Normal    string `json:"normal"`
+		Downshift string `json:"downshift"`
+	} `json:"prefixes"`
+	Routing          RoutingSettings `json:"routing"`
+	InspectionMethod string          `json:"inspectionMethod"`
+	Retry            struct {
+		MaxRetries    int     `json:"maxRetries"`
+		BaseDelayMs   int     `json:"baseDelayMs"`
+		BackoffFactor float64 `json:"backoffFactor"`
+	} `json:"retry"`
+	FailureRule struct {
+		WindowRounds int `json:"windowRounds"`
+	} `json:"failureRule"`
+	Quota struct {
+		MinRemainingPercent float64 `json:"minRemainingPercent"`
+		UnknownPolicy       string  `json:"unknownPolicy"`
+	} `json:"quota"`
+	Concurrency struct {
+		MaxObjects int `json:"maxObjects"`
+	} `json:"concurrency"`
+	InspectionModel string            `json:"inspectionModel"`
+	ReasoningEffort string            `json:"reasoningEffort"`
+	HeaderOverrides map[string]string `json:"headerOverrides"`
+	Pagination      Pagination        `json:"pagination"`
+	Layout          string            `json:"layout"`
+	MaskNames       bool              `json:"maskNames"`
+	Theme           string            `json:"theme"`
+	Schedule        Schedule          `json:"schedule"`
+	// 仅本次设置保存请求使用，不写入已保存设置或快照。
+	AcknowledgeScheduledConfigChanges bool `json:"acknowledgeScheduledConfigChanges,omitempty"`
+}
+
+func DefaultSettings() Settings {
+	var s Settings
+	s.Prefixes.Downshift = "downshift"
+	s.Routing = RoutingSettings{Mode: "prefix", Groups: map[string]RoutingValues{"normal": {Priority: 10, Weight: 10}, "downshift": {Priority: -10, Weight: 1}, "ungrouped": {Priority: 0, Weight: 10}}, Overrides: map[string]RoutingValues{}}
+	s.InspectionMethod = "candy"
+	s.InspectionModel = "gpt-6.1-sol"
+	s.ReasoningEffort = "low"
+	s.HeaderOverrides = map[string]string{}
+	s.Pagination = Pagination{List: 10, Card: 8, Pool: 4}
+	s.Retry.MaxRetries = 2
+	s.Retry.BaseDelayMs = 2000
+	s.Retry.BackoffFactor = 2
+	s.FailureRule.WindowRounds = 2
+	s.Quota.MinRemainingPercent = 15
+	s.Quota.UnknownPolicy = "check"
+	s.Concurrency.MaxObjects = 3
+	s.Layout = "pool"
+	s.Theme = "light"
+	s.Schedule = Schedule{Mode: "interval", IntervalMinutes: 60, DailyTime: "09:00", Windows: []TimeWindow{{"daytime", 540, 1080}}}
+	return s
+}
+
+type Sync struct {
+	Mode         string  `json:"mode,omitempty"`
+	DesiredGroup *string `json:"desiredGroup"`
+	AppliedGroup *string `json:"appliedGroup"`
+	Status       string  `json:"status"`
+	At           *string `json:"at"`
+	Message      *string `json:"message"`
+}
+type Credential struct {
+	ID                 string        `json:"id"`
+	Name               string        `json:"name"`
+	File               string        `json:"file"`
+	Plan               string        `json:"plan"`
+	Auth               string        `json:"auth"`
+	Availability       string        `json:"availability"`
+	BusySessions       int           `json:"busySessions"`
+	Quota              cpa.Quota     `json:"quota"`
+	Models             []string      `json:"models"`
+	Group              *string       `json:"group"`
+	Sync               Sync          `json:"sync"`
+	Routing            RoutingValues `json:"routing"`
+	Unavailable        bool          `json:"unavailable,omitempty"`
+	Prefix             string        `json:"prefix"`
+	InspectionExcluded bool          `json:"inspectionExcluded"`
+	ExcludedAt         *string       `json:"excludedAt"`
+}
+type Target struct {
+	ID           string   `json:"id"`
+	CredentialID string   `json:"credentialId"`
+	Model        string   `json:"model"`
+	Verdict      string   `json:"verdict"`
+	Rounds       []Round  `json:"rounds"`
+	Blocked      *Blocked `json:"blocked"`
+}
+type Blocked struct {
+	Kind    string `json:"kind"`
+	Message string `json:"message"`
+}
+type Attempt struct {
+	Index          int    `json:"index"`
+	Status         any    `json:"status"`
+	At             string `json:"at"`
+	WaitMs         int    `json:"waitMs"`
+	DurationMs     int64  `json:"durationMs"`
+	Test           string `json:"test"`
+	ChallengeIndex int    `json:"challengeIndex"`
+	RetryIndex     int    `json:"retryIndex"`
+	ValidResponse  bool   `json:"validResponse"`
+}
+type EvidenceError struct {
+	At      string `json:"at"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+type Candy struct {
+	PromptID   string `json:"promptId"`
+	Question   string `json:"question"`
+	Expected   string `json:"expected"`
+	Answer     string `json:"answer"`
+	Matched    bool   `json:"matched"`
+	FormatNote string `json:"formatNote"`
+}
+type Usage struct {
+	InputTokens  int `json:"inputTokens"`
+	OutputTokens int `json:"outputTokens"`
+}
+type ServiceErrors struct {
+	Codes               []int `json:"codes"`
+	ErrorRoundsInWindow int   `json:"errorRoundsInWindow"`
+	WindowSize          int   `json:"windowSize"`
+}
+type Evidence struct {
+	Tests        []string        `json:"tests"`
+	Candy        *Candy          `json:"candy,omitempty"`
+	Attempts     []Attempt       `json:"attempts"`
+	Errors       []EvidenceError `json:"errors"`
+	Usage        *Usage          `json:"usage"`
+	DurationMs   int64           `json:"durationMs"`
+	ServiceError *ServiceErrors  `json:"serviceError,omitempty"`
+}
+type Round struct {
+	ID              string   `json:"id"`
+	TargetID        string   `json:"targetId"`
+	StartedAt       string   `json:"startedAt"`
+	FinishedAt      string   `json:"finishedAt"`
+	Scope           string   `json:"scope"`
+	Tests           []string `json:"tests"`
+	Outcome         string   `json:"outcome"`
+	ReasonCode      string   `json:"reasonCode"`
+	Reason          string   `json:"reason"`
+	Evidence        Evidence `json:"evidence"`
+	Sync            *Sync    `json:"sync"`
+	ReasoningEffort string   `json:"reasoningEffort,omitempty"`
+}
+type RunItem struct {
+	TargetID    string  `json:"targetId"`
+	State       string  `json:"state"`
+	Note        *string `json:"note"`
+	StartedAt   *string `json:"startedAt"`
+	FinishedAt  *string `json:"finishedAt"`
+	Attempt     int     `json:"attempt"`
+	CurrentTest *string `json:"currentTest"`
+}
+type Task struct {
+	ID          string    `json:"id"`
+	Scope       string    `json:"scope"`
+	Label       string    `json:"label"`
+	CreatedAt   string    `json:"createdAt"`
+	FinishedAt  *string   `json:"finishedAt"`
+	Status      string    `json:"status"`
+	Items       []RunItem `json:"items"`
+	Concurrency int       `json:"concurrency"`
+}
+type Record struct {
+	Group              *string           `json:"group"`
+	Sync               Sync              `json:"sync"`
+	Targets            map[string]Target `json:"targets"`
+	OriginalPrefix     *string           `json:"originalPrefix,omitempty"`
+	InspectionExcluded bool              `json:"inspectionExcluded"`
+	ExcludedAt         *string           `json:"excludedAt"`
+}
+type diskState struct {
+	Version                            int                `json:"version"`
+	Settings                           Settings           `json:"settings"`
+	Records                            map[string]*Record `json:"records"`
+	Tasks                              []Task             `json:"tasks"`
+	ScheduledConfigChangesAcknowledged bool               `json:"scheduledConfigChangesAcknowledged,omitempty"`
+	ScheduledConfigurationFingerprint  string             `json:"scheduledConfigurationFingerprint,omitempty"`
+	ScheduleConsentRequired            bool               `json:"scheduleConsentRequired,omitempty"`
+}
+type Capabilities struct {
+	RoutingStrategy      string `json:"routingStrategy"`
+	WeightEditingEnabled bool   `json:"weightEditingEnabled"`
+	FingerprintAvailable bool   `json:"fingerprintAvailable"`
+	AvailabilityKnown    bool   `json:"availabilityKnown"`
+}
+type Snapshot struct {
+	Credentials           []Credential             `json:"credentials"`
+	Targets               []Target                 `json:"targets"`
+	Settings              Settings                 `json:"settings"`
+	Tasks                 []Task                   `json:"tasks"`
+	Source                string                   `json:"source"`
+	SourceDetail          string                   `json:"sourceDetail"`
+	Capabilities          Capabilities             `json:"capabilities"`
+	ConfigChangesRevision string                   `json:"configChangesRevision"`
+	RequestHeaderProfile  cpa.RequestHeaderProfile `json:"requestHeaderProfile"`
+}

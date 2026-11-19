@@ -1,7 +1,7 @@
 import type { InspectionRound, Target } from '../types'
 import { formatClock, formatDuration, formatRelative } from '../lib/format'
 import { lightSequence, roundTone } from '../lib/derive'
-import { REASON_LABEL, testLabel } from '../lib/rules'
+import { countRetries, REASON_LABEL, testLabel } from '../lib/rules'
 import { Dot, HoverCard } from './ui'
 
 const OUTCOME_LABEL = {
@@ -26,7 +26,7 @@ const TONE_TITLE: Record<string, string> = {
 
 function RoundTip({ round, onOpen }: { round: InspectionRound; onOpen: () => void }) {
   const attempts = round.evidence.attempts.length
-  const retries = Math.max(0, attempts - 1)
+  const retries = countRetries(round.evidence.attempts)
   const tone = roundTone(round)
   return (
     <>
@@ -153,10 +153,10 @@ export function StatusLights({
             <button
               type="button"
               className={`light light-${tone} ${problem ? 'is-problem' : ''}`}
-              onClick={() => {
+              onClick={(event) => {
                 // Problem lights pin their bubble on click; the tip carries the link to
                 // the full evidence sheet so a single click has one clear meaning.
-                if (!problem) onOpen(round.id)
+                if (!problem) { event.stopPropagation(); onOpen(round.id) }
               }}
               aria-label={`${formatRelative(round.finishedAt)}，${OUTCOME_LABEL[round.outcome]}，${
                 REASON_LABEL[round.reasonCode]

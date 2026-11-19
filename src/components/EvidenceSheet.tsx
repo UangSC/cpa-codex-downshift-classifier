@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
 import { useStore } from '../store/store'
-import { resyncCredential, startInspection } from '../store/engine'
+import { resyncCredential, startInspection } from '../store/actions'
 import { attentionOf, routedModelName } from '../lib/derive'
 import { formatDateTime, formatDuration, formatRelative, formatSeconds } from '../lib/format'
-import { REASON_DESC, REASON_LABEL, VERDICT_LABEL, testLabel } from '../lib/rules'
+import { countRetries, REASON_DESC, REASON_LABEL, VERDICT_LABEL, testLabel } from '../lib/rules'
 import { Chip, Collapse, Icon, Modal, SecretName } from '../components/ui'
+import { routingFor } from '../lib/routing'
+import { methodLabel } from '../inspection'
 
 export function EvidenceSheet() {
   const state = useStore()
@@ -22,7 +24,7 @@ export function EvidenceSheet() {
 
   const round = rounds[index]
   const attempts = round?.evidence.attempts ?? []
-  const retries = Math.max(0, attempts.length - 1)
+  const retries = countRetries(attempts)
   const prev = rounds[index + 1]
   const next = index > 0 ? rounds[index - 1] : undefined
 
@@ -31,6 +33,7 @@ export function EvidenceSheet() {
   const attention = credential ? attentionOf(credential) : []
   const groupedModels = credential?.models.length ?? 1
   const syncIssue = attention.find((a) => a.kind === 'sync')
+  const routingValues = credential ? routingFor(credential, state.settings.routing) : null
 
   return (
     <Modal
@@ -74,7 +77,7 @@ export function EvidenceSheet() {
           </button>
           <span className="spacer" />
           {syncIssue && (
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => credential && void resyncCredential(credential.id)}>
+            <button type="button" className="btn btn-sm btn-danger" disabled={state.connection !== 'connected' || !!credential && state.syncing.includes(credential.id)} onClick={() => credential && void resyncCredential(credential.id)}>
               重试同步
             </button>
           )}
@@ -84,6 +87,7 @@ export function EvidenceSheet() {
           <button
             type="button"
             className="btn btn-sm btn-primary"
+            disabled={state.connection !== 'connected' || state.starting || state.tasks.some((task) => task.status === 'running') || credential?.auth === 'expired'}
             onClick={() => {
               state.closeDetail()
               startInspection('manual', [target.id])
@@ -209,7 +213,7 @@ export function EvidenceSheet() {
                 <dd>
                   {round.evidence.fingerprint.probability == null
                     ? '—'
-                    : round.evidence.fingerprint.probability.toFixed(2)}
+                    : `${(round.evidence.fingerprint.probability * 100).toFixed(1)}%`}
                 </dd>
                 <dt>对照基准</dt>
                 <dd>
@@ -236,6 +240,15 @@ export function EvidenceSheet() {
                   </div>
                 </Collapse>
               )}
+            </div>
+          )}
+
+          {round.evidence.method && (
+            <div className="ev-section">
+              <h4>{round.evidence.method.label}</h4>
+              <dl className="kv">{round.evidence.method.details.map((entry, entryIndex) => (
+                <div className="ev-method-entry" key={entryIndex}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>
+              ))}</dl>
             </div>
           )}
 
@@ -286,7 +299,9 @@ export function EvidenceSheet() {
                     </td>
                     <td>{attempt.waitMs ? formatSeconds(attempt.waitMs) : '—'}</td>
                     <td style={{ color: 'var(--text-3)' }}>
-                      {attempt.index === 1
+                      {attempt.test
+                        ? `${methodLabel(attempt.test)} · 第 ${attempt.challengeIndex} 题 · ${attempt.retryIndex ? `共用重试 #${attempt.retryIndex}` : '首次请求'}${attempt.validResponse === false && attempt.status === 200 ? ' · 无效回答' : ''}`
+                        : attempt.index === 1
                         ? '首次请求'
                         : attempt.status === 200
                           ? '重试成功'
@@ -297,8 +312,7 @@ export function EvidenceSheet() {
               </tbody>
             </table>
             <p className="note">
-              每个请求最多尝试 {1 + state.settings.retry.maxRetries} 次，间隔
-              {state.settings.retry.maxRetries > 0 ? '按指数退避' : '不重试'}。
+              本轮选定检测方式的所有题目共用重试次数，成功题不重复。
               {round.evidence.usage
                 ? `本轮消耗约 ${round.evidence.usage.inputTokens.toLocaleString('zh-CN')} 输入 / ${round.evidence.usage.outputTokens.toLocaleString('zh-CN')} 输出 token。`
                 : ''}
@@ -313,7 +327,7 @@ export function EvidenceSheet() {
 
           <div className="ev-section">
             <h4>
-              分组前缀
+              分组配置
               <Chip
                 tone={
                   round.sync?.status === 'failed'
@@ -331,17 +345,24 @@ export function EvidenceSheet() {
               </Chip>
             </h4>
             <dl className="kv">
+              <dt>当前分组方式</dt><dd>{state.settings.routing.mode === 'prefix' ? '模型前缀' : '仅优先级'}</dd>
               <dt>原始模型名</dt>
               <dd className="mono">{target.model}</dd>
+              <dt>本轮思考程度</dt>
+              <dd>{round.reasoningEffort ? ({ low: '低 (low)', medium: '中 (medium)', high: '高 (high)' } as const)[round.reasoningEffort] : '旧记录未注明'}</dd>
               <dt>当前生效</dt>
               <dd className="mono">
-                {credential?.group
+                {credential
                   ? routedModelName(credential, target.model, state.settings)
                   : `${target.model}（原始名称）`}
               </dd>
               <dt>凭证分组</dt>
               <dd>
-                {credential?.group === 'normal'
+                {typeof credential?.prefix === 'string'
+                  ? `${credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'} · 当前前缀 ${credential.prefix || '无前缀'} · 优先级 ${routingValues?.priority ?? 0} · 继承权重 ${credential.routing?.weight ?? '未知'}`
+                  : state.settings.routing.mode === 'priority'
+                  ? `${credential?.group === 'normal' ? '正常' : credential?.group === 'downshift' ? '降档' : '未分组'} · 优先级 ${routingValues?.priority ?? 0} · 继承权重 ${credential?.routing?.weight ?? '未知'}`
+                  : credential?.group === 'normal'
                   ? state.settings.prefixes.normal
                     ? `正常组 ${state.settings.prefixes.normal}（全部 ${groupedModels} 个模型）`
                     : `正常组不加前缀（全部 ${groupedModels} 个模型保持原始名称）`
@@ -352,9 +373,9 @@ export function EvidenceSheet() {
               <dt>本轮目标</dt>
               <dd>
                 {round.sync?.desiredGroup === 'normal'
-                  ? '写入正常组；该凭证的全部模型一起切换'
+                  ? `写入正常组；${round.sync.mode === 'priority' ? '按该组优先级调度' : '该凭证的全部模型一起切换'}`
                   : round.sync?.desiredGroup === 'downshift'
-                    ? '写入降档组；该凭证的全部模型一起切换'
+                    ? `写入降档组；${round.sync.mode === 'priority' ? '按该组优先级调度' : '该凭证的全部模型一起切换'}`
                     : '本轮不改变分组'}
               </dd>
             </dl>
@@ -367,7 +388,7 @@ export function EvidenceSheet() {
             {round.outcome === 'uncertain' && (
               <p className="note">
                 本轮没有形成可靠结论，因此分组保持不变（当前为
-                {credential?.group ? ` ${credential.group}/` : '原始模型名'}）。
+                {credential?.group === 'normal' ? '正常组' : credential?.group === 'downshift' ? '降档组' : '未分组'}）。
               </p>
             )}
             <p className="note">

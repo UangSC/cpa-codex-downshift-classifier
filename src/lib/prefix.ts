@@ -5,20 +5,20 @@
  *  - the original model name is never destroyed: a group prefix is *prepended* to the
  *    canonical name, and any previously applied group prefix is stripped first, so
  *    repeated saves can never stack into `normal/normal/gpt-6.1-sol`;
- *  - both prefixes are normalised to exactly one trailing slash;
+ *  - stored prefixes omit trailing slashes; model-name composition inserts the separator;
  *  - empty, identical, hierarchical or illegal values are reported before saving.
  */
 
 import type { PrefixSettings } from '../types'
 
-export const DEFAULT_PREFIXES: PrefixSettings = { normal: '', downshift: 'downshift/' }
+export const DEFAULT_PREFIXES: PrefixSettings = { normal: '', downshift: 'downshift' }
 
 /** Known group segments, used to peel off a prefix that was applied earlier. */
 const KNOWN_SEGMENTS = ['normal', 'downshift']
 
 export interface PrefixFieldState {
   raw: string
-  /** Normalised form, e.g. `normal/`. Empty string when the input is unusable. */
+  /** Normalised form, e.g. `normal`. Empty string when the input is unusable. */
   normalized: string
   /** The original trimmed value differed from the normalised one. */
   adjusted: boolean
@@ -59,7 +59,7 @@ function normaliseOne(raw: string, allowEmpty = false): PrefixFieldState {
     errors.push('不能包含空格')
   }
 
-  // Collapse duplicate slashes and strip trailing slashes, then re-add exactly one.
+  // Store the name without a trailing separator; composition owns the slash.
   const segments = trimmed
     .replace(/^\/+|\/+$/g, '')
     .split('/')
@@ -73,17 +73,13 @@ function normaliseOne(raw: string, allowEmpty = false): PrefixFieldState {
     warnings.push('检测到重复叠加的分组前缀，已合并为单层')
   }
   const collapsed = effective.join('/')
-  const normalized = collapsed ? `${collapsed}/` : ''
+  const normalized = collapsed
+  if (!normalized && !allowEmpty) errors.push('前缀不能为空')
 
   if (effective.length > 1) {
     warnings.push('包含多层路径，模型名会变成多级前缀')
   }
-  if (!trimmed.endsWith('/')) {
-    warnings.push('已自动补全结尾的「/」')
-  }
-  if (trimmed !== normalized && trimmed.endsWith('/') && collapsed && !warnings.includes('检测到重复叠加的分组前缀，已合并为单层')) {
-    warnings.push('已合并重复的斜杠')
-  }
+  if (trimmed.endsWith('/')) warnings.push('保存时会移除结尾的「/」，拼接模型名时自动添加')
 
   return { raw, normalized, adjusted: trimmed !== normalized, errors, warnings }
 }
@@ -109,7 +105,7 @@ export function analyzePrefixes(prefixes: PrefixSettings): PrefixAnalysis {
   ) {
     const a = normal.normalized.toLowerCase()
     const b = downshift.normalized.toLowerCase()
-    if (a.startsWith(b) || b.startsWith(a)) {
+    if (a.startsWith(`${b}/`) || b.startsWith(`${a}/`)) {
       warnings.push('两个前缀存在包含关系，剥离旧前缀时可能产生歧义')
     }
   }
@@ -163,7 +159,7 @@ export function stripGroupPrefix(model: string, prefixes: PrefixSettings = DEFAU
 /** Builds the model name that a group prefix implies. */
 export function buildModelName(prefix: string, model: string): string {
   const clean = prefix.trim().replace(/\/+$/g, '')
-  const base = stripGroupPrefix(model)
+  const base = stripGroupPrefix(model, { normal: clean, downshift: DEFAULT_PREFIXES.downshift })
   return clean ? `${clean}/${base}` : base
 }
 

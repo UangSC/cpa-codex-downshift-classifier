@@ -1,97 +1,65 @@
-/**
- * Backend contract for the CLIProxyAPI plugin.
- *
- * This frontend is published as a plugin *resource page*
- * (`/v0/resource/plugins/<pluginID>/…`) and talks to the plugin's own management routes
- * (`/v0/management/plugins/<pluginID>/…`), which require the management key. That is the
- * mechanism CLIProxyAPI documents for the `management_api` plugin capability:
- *   - Routes    -> `/v0/management/...`            (management key required)
- *   - Resources -> `/v0/resource/plugins/<id>/...` (static page, same origin)
- *
- * The prefix is a *model registration* concern: a plugin registers model IDs through
- * `model.register`, so `downshift/gpt-6.1-sol` is a registered model ID that the plugin
- * routes to the credential pool it belongs to. Because registration is per credential,
- * one group decision moves every model of that credential at once.
- *
- * Nothing here is called by the simulated build — `mock.ts` satisfies the same interface,
- * so wiring a real backend means implementing these routes and flipping `createBackend`.
- */
-
-import type { Credential, Settings, Target, TestKind } from '../types'
+import type { Credential, InspectionTask, Settings, Target, TestKind } from '../types'
 
 export const PLUGIN_ID = 'cpa-codex-downshift-classifier'
-
+const ROOT = `/v0/management/plugins/${PLUGIN_ID}`
 export const ENDPOINTS = {
-  /** Full state: credentials, per-model evidence, settings. */
-  snapshot: `/v0/management/plugins/${PLUGIN_ID}/snapshot`,
-  /** Start one or more checks. */
-  checks: `/v0/management/plugins/${PLUGIN_ID}/checks`,
-  /** One task with its queued / waiting / retrying items. */
-  task: (taskId: string) => `/v0/management/plugins/${PLUGIN_ID}/tasks/${taskId}`,
-  cancelTask: (taskId: string) => `/v0/management/plugins/${PLUGIN_ID}/tasks/${taskId}/cancel`,
-  /** Retry the credential file write that applies the group prefix. */
-  sync: `/v0/management/plugins/${PLUGIN_ID}/sync`,
-  settings: `/v0/management/plugins/${PLUGIN_ID}/settings`,
+  snapshot: `${ROOT}/snapshot`, checks: `${ROOT}/checks`,
+  task: (id: string) => `${ROOT}/tasks?id=${encodeURIComponent(id)}`,
+  cancelTask: (id: string) => `${ROOT}/tasks/cancel?id=${encodeURIComponent(id)}`,
+  sync: `${ROOT}/sync`, settings: `${ROOT}/settings`, routing: `${ROOT}/routing`,
+  exclusions: `${ROOT}/exclusions`,
 } as const
 
-/** The whole UI state a backend must be able to describe. */
+export interface Capabilities {
+  routingStrategy: string
+  weightEditingEnabled: boolean
+  fingerprintAvailable: boolean
+  availabilityKnown?: boolean
+}
+export const EMPTY_CAPABILITIES: Capabilities = {
+  routingStrategy: 'unknown', weightEditingEnabled: false, fingerprintAvailable: false, availabilityKnown: false,
+}
 export interface Snapshot {
   credentials: Credential[]
   targets: Target[]
   settings: Settings
-  /** `simulated` lets the UI keep the explicit "mock data" badge. */
-  source: 'live' | 'simulated'
-  /** Free-form note shown in the settings page, e.g. "来自 CLIProxyAPI v8.x". */
+  tasks?: InspectionTask[]
+  capabilities?: Capabilities
+  source: 'live'
   sourceDetail?: string
+  configChangesRevision?: string
+  requestHeaderProfile?: RequestHeaderProfile
 }
-
+export interface RequestHeaderProfile {
+  codexCliVersion: string
+  defaultHeaders: Record<string, string>
+  managedHeaders?: string[]
+}
 export interface StartChecksRequest {
-  /** Credential ids to inspect; omit to check every eligible credential. */
   credentialIds?: string[]
-  /** The single model used to probe each credential. */
   model: string
-  tests: TestKind[]
+  method: TestKind
   scope: 'manual' | 'batch' | 'scheduled'
+  acknowledgeConfigChanges: boolean
+  configChangesMode: Settings['routing']['mode']
+  configChangesRevision: string
 }
-
-export interface StartChecksResponse {
-  taskId: string
-}
-
-export interface SyncRequest {
-  credentialId: string
-}
-
-export interface SyncResponse {
-  /** `failed` keeps the previous group applied; the UI shows a pending-sync badge. */
-  status: 'synced' | 'failed'
-  appliedGroup: 'normal' | 'downshift' | null
-  message: string | null
-}
-
+export interface StartChecksResponse { taskId: string }
+/** weight 仅保留旧调用兼容，正式接口会拒绝修改继承权重。 */
+export interface RoutingRequest { credentialId: string; priority?: number; weight?: number; reset?: boolean }
+export interface SyncRequest { credentialId: string }
+export interface ExclusionRequest { credentialIds: string[]; excluded: boolean }
+export interface SyncResponse { status: 'synced' | 'failed'; appliedGroup: 'normal' | 'downshift' | null; message: string | null }
 export interface Backend {
-  readonly kind: 'mock' | 'plugin'
+  readonly kind: 'plugin'
   loadSnapshot(): Promise<Snapshot>
-  startChecks?(request: StartChecksRequest): Promise<StartChecksResponse>
-  cancelTask?(taskId: string): Promise<void>
-  sync?(request: SyncRequest): Promise<SyncResponse>
-  saveSettings?(settings: Settings): Promise<void>
+  startChecks(request: StartChecksRequest): Promise<StartChecksResponse>
+  loadTask(id: string): Promise<InspectionTask>
+  cancelTask(id: string): Promise<void>
+  sync(request: SyncRequest): Promise<SyncResponse>
+  saveSettings(settings: Settings, acknowledgeScheduledConfigChanges?: boolean): Promise<void>
+  saveRouting(request: RoutingRequest): Promise<void>
+  setExclusions(request: ExclusionRequest): Promise<void>
 }
 
-/**
- * Management key available to the page. In a same-origin Management Center deployment the
- * plugin page may reuse the key the panel already stored; the storage key name is panel
- * specific, so this only probes well-known names and otherwise returns `null`.
- */
-export function readStoredManagementKey(): string | null {
-  const candidates = ['management-key', 'cpa-management-key', 'cliproxyapi-management-key', 'mgmt-key']
-  try {
-    for (const name of candidates) {
-      const value = window.localStorage.getItem(name)
-      if (value && value.trim()) return value.trim()
-    }
-  } catch {
-    /* storage may be blocked for the resource page */
-  }
-  return null
-}
+export { decodeManagementStorage, readStoredManagementKey } from './auth'

@@ -1,13 +1,11 @@
 /**
- * Rule copy and derived numbers.
- *
- * Every sentence the UI shows about retries, repeated-failure judgement and the quota
- * gate is generated here from the same settings object the engine executes, so the
- * description can never drift from the behaviour.
+ * 界面规则说明与派生数值。
+ * 重试、连续失败和额度门槛的文字由当前设置生成；实际巡检由 Go 服务端执行。
  */
 
-import type { ReasonCode, RetryPolicy, Settings, TestKind, Verdict } from '../types'
+import type { ReasonCode, RequestAttempt, RetryPolicy, Settings, TestKind, Verdict } from '../types'
 import { formatSeconds } from './format'
+import { methodLabel } from '../inspection'
 
 /** Delay before each retry, in order. Length equals the retry count. */
 export function retryWaits(policy: RetryPolicy): number[] {
@@ -20,18 +18,25 @@ export function totalAttempts(policy: RetryPolicy): number {
   return Math.max(1, policy.maxRetries + 1)
 }
 
-/** "每个请求最多尝试 3 次（首次 + 重试 2 次），重试前等待 2 秒、4 秒。" */
+/** 新记录区分正常题目与额外重试；旧记录仍按单请求格式解释。 */
+export function countRetries(attempts: RequestAttempt[]): number {
+  return attempts.some((attempt) => attempt.retryIndex != null)
+    ? attempts.filter((attempt) => (attempt.retryIndex ?? 0) > 0).length
+    : Math.max(0, attempts.length - 1)
+}
+
+/** 本轮所有题目共用的重试规则。 */
 export function retrySentence(policy: RetryPolicy): string {
   const waits = retryWaits(policy)
-  if (waits.length === 0) return '不重试：请求失败即计入本轮结果。'
+  if (waits.length === 0) return '本轮不重试；请求异常或无有效回答时停止本轮检测。'
   const plays = waits.map((ms) => formatSeconds(ms)).join('、')
-  return `每个请求最多尝试 ${totalAttempts(policy)} 次（首次 + 重试 ${policy.maxRetries} 次），重试前等待 ${plays}。`
+  return `本轮所有题目共用 ${policy.maxRetries} 次重试，依次等待 ${plays}。成功题不重复请求。`
 }
 
 /** The exact repeated-failure condition, including the 502/503 equivalence. */
 export function failureRuleSentence(settings: Settings): string {
   const n = settings.failureRule.windowRounds
-  return `最近 ${n} 轮检测每轮都出现 502/503 服务错误时判定为降档；单轮首次出现只标记不确定，不改变分组。502 与 503 交替出现计入同一类失败。`
+  return `每轮最多重试 ${settings.retry.maxRetries} 次（同一题首次失败后最多请求 ${settings.retry.maxRetries + 1} 次）。连续 ${n} 轮巡检在重试后仍出现 502/503，才判定降档；某轮恢复成功会打断连续失败。这里的“轮”不是单次请求，502 与 503 交替也算同类失败。`
 }
 
 export function quotaWindowLabel(minPercent: number): string {
@@ -50,12 +55,11 @@ export function quotaSentence(settings: Settings): string {
 
 export function testLabel(tests: TestKind[]): string {
   if (tests.length === 0) return '未选择测试'
-  if (tests.length === 2) return '糖果题 + 指纹'
-  return tests[0] === 'candy' ? '仅糖果题' : '仅指纹'
+  return tests.map(methodLabel).join(' + ')
 }
 
 export function testShort(kind: TestKind): string {
-  return kind === 'candy' ? '糖果题' : '指纹'
+  return methodLabel(kind)
 }
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
@@ -84,11 +88,12 @@ export const REASON_LABEL: Record<ReasonCode, string> = {
   'quota-exhausted': '额度不足',
   cancelled: '已取消',
   'no-model-response': '无有效回答',
+  'method-result': '检测结果',
 }
 
 export const REASON_DESC: Record<ReasonCode, string> = {
   'all-tests-passed': '本轮所选测试全部通过，未出现需要重试的请求错误。',
-  'passed-after-retry': '请求曾出现 502/503，但在允许次数内重试成功；本轮所选测试全部通过，未触发降档判定。',
+  'passed-after-retry': '请求曾出现服务错误或无效回答，但在本轮共用的重试次数内成功；所选测试全部通过。',
   'candy-mismatch': '糖果题的正确答案应为 21，模型回答中未出现独立的 21。',
   'fingerprint-anomaly': '本轮回答与请求模型对应的参考分布差异显著，更接近另一个参考模型。',
   'fingerprint-insufficient': '可用回答数量不足，无法与参考库可靠比对，因此本轮不下结论。',
@@ -101,6 +106,7 @@ export const REASON_DESC: Record<ReasonCode, string> = {
     '额度已用尽或请求正在排队，无法发起检测。这属于凭证状态问题，不等于模型降档；分组保持不变。',
   cancelled: '检测被取消，本轮没有形成完整结论，分组保持不变。',
   'no-model-response': '请求成功但模型未返回可判定的回答。',
+  'method-result': '该轮结果由所选检测方式提供。',
 }
 
 /** Status-light legend, reused by the toolbar help and the settings page. */

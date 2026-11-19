@@ -1,19 +1,21 @@
 import { useEffect, useMemo } from 'react'
 import { useStore, type TabKey } from './store/store'
-import { useScheduleSync } from './store/scheduleActions'
 import { Overview } from './views/Overview'
 import { HistoryView } from './views/History'
 import { SettingsView } from './views/Settings'
 import { RunPanel } from './components/RunPanel'
 import { EvidenceSheet } from './components/EvidenceSheet'
-import { DemoPanel } from './components/DemoPanel'
+import { ConnectionPanel } from './components/ConnectionPanel'
+import { ExclusionDrawer, ExclusionIcon } from './components/ExclusionDrawer'
 import { Toasts } from './components/Toasts'
+import { SettingsSavePrompt } from './components/SettingsSavePrompt'
+import { InspectionConfirmationDialog } from './components/InspectionConfirmationDialog'
 import { Icon, SelectionProvider, useSelectionSet } from './components/ui'
 
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: 'overview', label: '概览', icon: <Icon.Layers /> },
-  { key: 'history', label: '历史', icon: <Icon.History /> },
-  { key: 'settings', label: '设置', icon: <Icon.Cog /> },
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'overview', label: '概览' },
+  { key: 'history', label: '历史' },
+  { key: 'settings', label: '设置' },
 ]
 
 export default function App() {
@@ -21,7 +23,9 @@ export default function App() {
   const setTab = useStore((s) => s.setTab)
   const settings = useStore((s) => s.settings)
   const tasks = useStore((s) => s.tasks)
-  const source = useStore((s) => s.source)
+  const connection = useStore((s) => s.connection)
+  const authenticated = useStore((s) => s.authenticated)
+  const excludedCount = useStore((s) => s.credentials.filter((credential) => credential.inspectionExcluded).length)
   const selected = useStore((s) => s.selected)
   const toggleSelect = useStore((s) => s.toggleSelect)
   const setSelected = useStore((s) => s.selectTargets)
@@ -29,9 +33,6 @@ export default function App() {
   const openDetail = useStore((s) => s.openDetail)
   const setRunPanel = useStore((s) => s.setRunPanel)
   const updateSettings = useStore((s) => s.updateSettings)
-
-  useScheduleSync()
-
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme
   }, [settings.theme])
@@ -67,6 +68,8 @@ export default function App() {
       ).length
     : 0
 
+  if (!authenticated) return <><ConnectionPanel /><Toasts /></>
+
   return (
     <SelectionProvider value={selectionApi}>
       <div className="app">
@@ -97,6 +100,10 @@ export default function App() {
             </nav>
 
             <div className="topbar-actions">
+              <button type="button" className={`btn btn-sm exclusion-entry exclusion-topbar-entry ${excludedCount ? 'has-excluded' : ''}`} data-exclusion-target
+                onClick={() => useStore.getState().setExclusionDrawerOpen(true)} aria-label={`不参与巡检池，${excludedCount} 个凭证`}>
+                <ExclusionIcon /><span className="exclusion-topbar-label">不参与巡检</span><span className="count-badge">{excludedCount}</span>
+              </button>
               <button
                 type="button"
                 className="btn btn-sm"
@@ -122,15 +129,11 @@ export default function App() {
               </button>
 
               <span
-                className={`env-badge ${source === 'live' ? 'is-live' : ''}`}
-                title={
-                  source === 'live'
-                    ? '数据来自 CLIProxyAPI 插件接口'
-                    : '当前使用本地模拟数据，不会调用 CLIProxyAPI'
-                }
+                className={`env-badge ${connection === 'connected' ? 'is-live' : ''}`}
+                title={connection === 'connected' ? '数据来自 CLIProxyAPI 插件接口' : 'CPA 尚未连接，当前状态未更新'}
               >
                 <i aria-hidden="true" />
-                {source === 'live' ? '实时数据' : '模拟数据'}
+                {connection === 'connected' ? '实时数据' : '未连接'}
               </span>
 
               <button
@@ -149,15 +152,18 @@ export default function App() {
         </header>
 
         <main className="page">
+          <ConnectionPanel />
           {tab === 'overview' && <Overview onOpenDetail={openDetail} />}
           {tab === 'history' && <HistoryView onOpenDetail={openDetail} />}
           {tab === 'settings' && <SettingsView />}
         </main>
 
         <RunPanel />
+        <InspectionConfirmationDialog />
+        <ExclusionDrawer />
         <EvidenceSheet />
-        <DemoPanel />
         <Toasts />
+        <SettingsSavePrompt />
       </div>
     </SelectionProvider>
   )

@@ -1,9 +1,40 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Settings } from '../types'
 import { formatRelative } from '../lib/format'
 import { lastRound, lowestQuota, type CredentialView } from '../lib/derive'
 import { Chip, HoverCard, Icon, PlanBadge, PlanMark, QuotaMeter, SecretName, useSelection } from './ui'
+import { routingFor } from '../lib/routing'
+import { routedModelName } from '../lib/derive'
+import { CredentialRouting } from './RoutingControls'
 import { StatusLights } from './StatusLights'
+import { useStore } from '../store/store'
+import { ExclusionIcon } from './ExclusionDrawer'
+import { cardIdentityAttributes } from '../lib/cardIdentity'
+
+/** 页码始终收敛到有效范围，过滤或移入排除池不会产生空白越界页。 */
+export function credentialPage<T>(items: T[], page: number, pageSize: number) {
+  const size = Math.max(1, Math.trunc(pageSize) || 1)
+  const pages = Math.max(1, Math.ceil(items.length / size))
+  const safePage = Math.min(Math.max(0, Math.trunc(page) || 0), pages - 1)
+  const start = safePage * size
+  return { items: items.slice(start, start + size), page: safePage, pages, total: items.length, size,
+    from: items.length ? start + 1 : 0, to: Math.min(items.length, start + size) }
+}
+
+export function CredentialPager({ page, pages, total, pageSize, onPage, label }: {
+  page: number; pages: number; total: number; pageSize: number; onPage: (next: number) => void; label: string
+}) {
+  const first = total ? page * pageSize + 1 : 0
+  const last = Math.min(total, (page + 1) * pageSize)
+  return <nav className="credential-pagination" aria-label={`${label}分页`}>
+    <span className="pagination-range">{first}–{last} / {total} 个凭证 · 每页 {pageSize} 个</span>
+    <div className="pagination-actions">
+      <button type="button" className="btn btn-sm pagination-button" disabled={page <= 0} onClick={() => onPage(page - 1)} aria-label={`${label}上一页`}><span className="pagination-chevron is-previous"><Icon.Chevron dir="right" /></span>上一页</button>
+      <span className="pagination-position" aria-live="polite">第 <strong>{page + 1}</strong> / {pages} 页</span>
+      <button type="button" className="btn btn-sm pagination-button" disabled={page >= pages - 1} onClick={() => onPage(page + 1)} aria-label={`${label}下一页`}>下一页<span className="pagination-chevron"><Icon.Chevron dir="right" /></span></button>
+    </div>
+  </nav>
+}
 
 /**
  * User-facing credential status. Four states only: 正常 / 降档 / 未知 / 异常.
@@ -20,7 +51,7 @@ const STATUS_TEXT: Record<StatusKey, string> = {
 }
 
 function statusOf(view: CredentialView): StatusKey {
-  if (view.attention.some((a) => a.kind === 'sync' || a.kind === 'auth')) return 'error'
+  if (view.attention.some((a) => a.kind === 'sync' || a.kind === 'auth' || a.kind === 'availability')) return 'error'
   if (view.verdict === 'normal') return 'normal'
   if (view.verdict === 'downshift') return 'downshift'
   return 'unknown'
@@ -34,6 +65,10 @@ export interface CredentialRuntime {
   onRetest: (credentialId: string) => void
   onOpenDetail: (targetId: string, roundId?: string | null) => void
   onResync: (credentialId: string) => void
+  onExclude?: (credentialId: string) => void
+  exclusionBusyCredentialIds?: string[]
+  canInspect?: boolean
+  canChangeParticipation?: boolean
 }
 
 function stop(e: { stopPropagation: () => void }) {
@@ -45,87 +80,43 @@ function stop(e: { stopPropagation: () => void }) {
 /** The single four-state status chip used by cards (and the list verdict column). */
 function StatusPill({ view, size }: { view: CredentialView; size?: 'sm' }) {
   const key = statusOf(view)
-  const detail = view.attention.find((a) => a.kind === 'sync' || a.kind === 'auth')?.detail
-  return (
-    <span
+  const detail = view.attention.find((a) => a.kind === 'sync' || a.kind === 'auth' || a.kind === 'availability')?.detail ?? view.reason ?? '尚未取得完整检测结果，请执行复测后查看依据。'
+  const interactive = key === 'unknown' || key === 'error'
+  const Tag = interactive ? 'button' : 'span'
+  const pill = (
+    <Tag type={interactive ? 'button' : undefined}
       className={`verdict verdict-${key} status-pill ${size === 'sm' ? 'is-sm' : ''}`}
-      title={detail}
+      aria-label={interactive ? `${STATUS_TEXT[key]}状态说明` : undefined}
     >
       <span className={`dot dot-${key === 'unknown' ? 'uncertain' : key === 'error' ? 'downshift' : key}`} aria-hidden="true" />
       {STATUS_TEXT[key]}
-    </span>
+    </Tag>
   )
+  return interactive ? <HoverCard pinOnClick hideDelay={150} content={<><div className="tip-title">{STATUS_TEXT[key]}状态说明</div><p>{detail}</p></>}>{pill}</HoverCard> : pill
 }
 
-function GroupCell({
-  view,
-  settings,
-  compact,
-}: {
-  view: CredentialView
-  settings: Settings
-  compact?: boolean
-}) {
+function GroupCell({ view, settings }: { view: CredentialView; settings: Settings }) {
   const { credential } = view
-  const prefix =
-    credential.group === 'normal'
-      ? settings.prefixes.normal
-      : credential.group === 'downshift'
-        ? settings.prefixes.downshift
-        : null
   const label = credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'
-  const tone = credential.group ?? 'none'
-  const sync = view.attention.find((a) => a.kind === 'sync')
-  const tooltip = (
-    <>
-      <div className="tip-title">{credential.group ? prefix || '未加前缀' : '未分组'}</div>
-      <div className="tip-row">
-        <span className="tip-k">影响</span>
-        <span className="tip-v">
-          {credential.group === 'normal' && !prefix
-            ? `正常组不加前缀：${credential.models.length} 个模型保持原始模型名（可在设置中配置正常组前缀）。`
-            : credential.group
-              ? `${credential.models.length} 个模型统一使用该前缀（例如 ${prefix}${settings.inspectionModel}）。`
-              : `尚未写入分组前缀：${credential.models.length} 个模型仍使用原始模型名。`}
-        </span>
-      </div>
-      {sync && (
-        <div className="tip-row">
-          <span className="tip-k">同步</span>
-          <span className="tip-v">{sync.detail}</span>
-        </div>
-      )}
-    </>
-  )
-
-  if (compact) {
-    return (
-      <div className="group-cell">
-        <div className="group-row">
-          <HoverCard content={tooltip}>
-            <span className={`group-state is-${tone}`}>
-              <span className="group-state-dot" aria-hidden="true" />
-              {label}
-            </span>
-          </HoverCard>
-        </div>
-      </div>
-    )
-  }
-
-  // List: a plain prefix line instead of a second verdict pill keeps the row quiet.
-  // The sub-line is deliberately gone — the prefix alone says everything; the model
-  // count and the sync action live in the hover bubble.
-  return (
-    <div className="group-cell is-list">
-      <div className="group-line">
-        <span className={`group-dot is-${tone}`} aria-hidden="true" />
-        <HoverCard content={tooltip}>
-          <span className={`group-prefix is-${tone}`}>{credential.group ? prefix || '无前缀' : '未分组'}</span>
-        </HoverCard>
-      </div>
-    </div>
-  )
+  const prefixKnown = typeof credential.prefix === 'string'
+  const prefix = prefixKnown ? credential.prefix!.trim().replace(/\/+$/g, '') : credential.group ? settings.prefixes[credential.group] : null
+  const values = routingFor(credential, settings.routing)
+  const sync = view.attention.find((item) => item.kind === 'sync')
+  const tooltip = <>
+    <div className="tip-title">{label}组 · {settings.routing.mode === 'prefix' ? '模型前缀' : '仅优先级'}</div>
+    <div className="tip-row"><span className="tip-k">配置</span><span className="tip-v">
+      {settings.routing.mode === 'priority'
+        ? `优先级 ${values.priority}，继承权重 ${credential.routing?.weight ?? '未知'}；当前模型名例如 ${routedModelName(credential, settings.inspectionModel, settings)}。`
+        : `${credential.models.length} 个模型当前使用此凭证的生效前缀，例如 ${routedModelName(credential, settings.inspectionModel, settings)}。`}
+    </span></div>
+    {sync && <div className="tip-row"><span className="tip-k">同步</span><span className="tip-v">{sync.detail}</span></div>}
+  </>
+  return <div className="group-cell is-list"><div className="group-line">
+    <span className={`group-dot is-${credential.group ?? 'none'}`} aria-hidden="true" />
+    <HoverCard content={tooltip}><span className={`group-prefix is-${credential.group ?? 'none'}`}>
+      {prefixKnown ? prefix || '无前缀' : settings.routing.mode === 'priority' ? label : credential.group ? prefix || '无前缀' : '未分组'}
+    </span></HoverCard>
+  </div></div>
 }
 
 function QuotaCell({ view, settings }: { view: CredentialView; settings: Settings }) {
@@ -160,6 +151,7 @@ function StateChips({ view }: { view: CredentialView }) {
 function Actions({
   view,
   runtime,
+  compact = false,
 }: {
   view: CredentialView
   runtime: CredentialRuntime
@@ -167,13 +159,16 @@ function Actions({
 }) {
   const busy = runtime.activeCredentialIds.includes(view.credential.id)
   const expired = view.credential.auth === 'expired'
+  const excluding = useStore((state) => state.excluding.includes(view.credential.id))
+  const exclusionBusy = !!runtime.exclusionBusyCredentialIds?.includes(view.credential.id)
   return (
-    <div className="cred-actions" onClick={stop}>
+    <div className={`cred-actions ${compact ? 'is-compact' : ''}`} onClick={stop}>
       <HoverCard
         placement="top"
         content={
           expired
             ? '凭证认证失效，需重新登录后再检测'
+            : view.credential.unavailable ? 'CPA 当前报告此凭证暂不可用或处于冷却'
             : busy
               ? '正在检测，请稍候'
               : `用 ${runtime.settings.inspectionModel} 检测该凭证，结论作用于它的全部模型`
@@ -182,9 +177,10 @@ function Actions({
         <button
           type="button"
           className="btn btn-sm btn-retest"
-          disabled={busy || expired}
+          aria-label={`复测 ${view.credential.name}`}
+          disabled={runtime.canInspect === false || busy || excluding || expired || view.credential.unavailable}
           onClick={() => runtime.onRetest(view.credential.id)}
-          title={view.attention.some((a) => a.kind === 'sync') ? '复测会重新检测，并在结论变化时重新写入分组前缀' : undefined}
+          title={view.attention.some((a) => a.kind === 'sync') ? '复测会重新检测，并按所选策略应用分组配置' : undefined}
         >
           <Icon.Refresh />
           <span>{busy ? '检测中' : '复测'}</span>
@@ -194,6 +190,7 @@ function Actions({
         <button
           type="button"
           className="btn btn-sm btn-detail"
+          aria-label={`查看 ${view.credential.name} 的检测依据`}
           onClick={() => runtime.onOpenDetail(view.target!.id, lastRound(view.target)?.id ?? null)}
           title="查看本轮的题目、回答、指纹比对与分组写入"
         >
@@ -201,6 +198,12 @@ function Actions({
           <span>依据</span>
         </button>
       )}
+      {runtime.onExclude && <HoverCard content={exclusionBusy ? '该凭证仍在巡检任务中，请先停止任务或等待完成。' : '移入不参与巡检池。原分类、历史与 CPA 配置不变，仍可用于正常请求。'}>
+        <button type="button" className="btn btn-sm btn-exclude" disabled={excluding || exclusionBusy || runtime.canChangeParticipation === false}
+          aria-label={`将 ${view.credential.name} 移入不参与巡检`} onClick={() => runtime.onExclude?.(view.credential.id)}>
+          <ExclusionIcon /><span>{excluding ? '移入中' : '不参与'}</span>
+        </button>
+      </HoverCard>}
     </div>
   )
 }
@@ -212,13 +215,14 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
   return (
     <div className="cred-table">
       <div className="cred-table-head" aria-hidden="true">
-        <span />
-        <span>凭证</span>
-        <span>结论</span>
-        <span>近期状态</span>
-        <span>当前分组</span>
-        <span>剩余额度</span>
-        <span style={{ textAlign: 'right' }}>操作</span>
+        <span data-list-cell="selection" />
+        <span data-list-cell="identity">凭证</span>
+        <span data-list-cell="routing">优先级 - 继承权重</span>
+        <span data-list-cell="verdict">结论</span>
+        <span data-list-cell="lights">近期状态</span>
+        <span data-list-cell="group">当前分组</span>
+        <span data-list-cell="quota">剩余额度</span>
+        <span data-list-cell="actions" style={{ textAlign: 'right' }}>操作</span>
       </div>
       {views.map((view) => {
         const selected = selection.has(view.credential.id)
@@ -227,8 +231,10 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
             key={view.credential.id}
             className={`cred-row tone-${view.verdict} ${selected ? 'is-selected' : ''}`}
             data-testid={`cred-${view.credential.id}`}
+            data-credential-id={view.credential.id}
+            data-exclusion-source="true"
           >
-            <div className="cred-row-check">
+            <div className="cred-row-check" data-list-cell="selection">
               <input
                 type="checkbox"
                 className="checkbox"
@@ -238,7 +244,7 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
               />
             </div>
 
-            <div className="cred-ident">
+            <div className="cred-ident" data-list-cell="identity">
               <PlanMark plan={view.credential.plan} size="sm" />
               <div className="cred-ident-main">
                 <div className="cred-name-line">
@@ -266,29 +272,33 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
               </div>
             </div>
 
-            <div className="cred-verdict-cell">
+            <div className="cred-routing-cell" data-list-cell="routing">
+              <CredentialRouting credential={view.credential} />
+            </div>
+
+            <div className="cred-verdict-cell" data-list-cell="verdict">
               <StatusPill view={view} />
             </div>
 
-            <div className="cred-lights-cell">
+            <div className="cred-lights-cell" data-list-cell="lights">
               <StatusLights
                 target={view.target}
                 onOpen={(roundId) => view.target && runtime.onOpenDetail(view.target.id, roundId)}
               />
             </div>
 
-            <div className="cred-group-cell">
+            <div className="cred-group-cell" data-list-cell="group">
               <GroupCell
                 view={view}
                 settings={runtime.settings}
               />
             </div>
 
-            <div className="cred-quota-cell">
+            <div className="cred-quota-cell" data-list-cell="quota">
               <QuotaCell view={view} settings={runtime.settings} />
             </div>
 
-            <div className="cred-row-actions">
+            <div className="cred-row-actions" data-list-cell="actions">
               <Actions view={view} runtime={runtime} />
             </div>
           </div>
@@ -307,6 +317,8 @@ function SelectableCard({
   children,
   testId,
   title,
+  credentialId,
+  identity,
 }: {
   selected: boolean
   onToggle: () => void
@@ -314,13 +326,18 @@ function SelectableCard({
   children: React.ReactNode
   testId?: string
   title?: string
+  credentialId?: string
+  identity?: ReturnType<typeof cardIdentityAttributes>
 }) {
   return (
     <div
+      {...identity}
       role="button"
       tabIndex={0}
       aria-pressed={selected}
       data-testid={testId}
+      data-credential-id={credentialId}
+      data-exclusion-source={credentialId ? 'true' : undefined}
       title={title}
       className={`${className} ${selected ? 'is-selected' : ''}`}
       onClick={onToggle}
@@ -368,6 +385,8 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
         return (
           <SelectableCard
             key={view.credential.id}
+            credentialId={view.credential.id}
+            identity={cardIdentityAttributes(view.credential.plan, view.credential.id)}
             selected={selected}
             onToggle={() => selection.toggle(view.credential.id)}
             className={`cred-tile tone-${view.verdict}`}
@@ -415,10 +434,8 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
               />
             </div>
 
-            <div className="tile-group">
-              <span className="tile-label">分组</span>
-              <GroupCell view={view} settings={runtime.settings} compact />
-              <span className="tile-model">· {view.credential.models.length} 个模型</span>
+            <div className="tile-routing">
+              <CredentialRouting credential={view.credential} showLabels />
               {gateNote && <span className="tile-gate">{gateNote}</span>}
             </div>
 
@@ -443,8 +460,6 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
 
 /* ------------------------------------------------------------------ pools */
 
-const POOL_PAGE_SIZE = 8
-
 type PoolKey = 'normal' | 'uncertain' | 'downshift'
 
 function PoolCard({ view, runtime }: { view: CredentialView; runtime: CredentialRuntime }) {
@@ -462,6 +477,8 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
           : null
   return (
     <SelectableCard
+      credentialId={view.credential.id}
+      identity={cardIdentityAttributes(view.credential.plan, view.credential.id)}
       selected={selected}
       onToggle={() => selection.toggle(view.credential.id)}
       className={`pool-card tone-${view.verdict}`}
@@ -496,9 +513,8 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
         </span>
       </div>
 
-      <div className="pool-card-group">
-        <GroupCell view={view} settings={runtime.settings} compact />
-        <span className="tile-model">· {view.credential.models.length} 个模型</span>
+      <div className="pool-card-routing">
+        <CredentialRouting credential={view.credential} showLabels />
         {gateNote && <span className="tile-gate">{gateNote}</span>}
       </div>
 
@@ -511,42 +527,6 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
         <Actions view={view} runtime={runtime} compact />
       </div>
     </SelectableCard>
-  )
-}
-
-function PoolPager({
-  page,
-  pages,
-  onPage,
-}: {
-  page: number
-  pages: number
-  onPage: (next: number) => void
-}) {
-  return (
-    <div className="pool-pager">
-      <button
-        type="button"
-        className="pager-btn"
-        disabled={page <= 0}
-        onClick={() => onPage(page - 1)}
-        aria-label="上一页"
-      >
-        ‹
-      </button>
-      <span className="pager-label">
-        第 {page + 1} / {pages} 页
-      </span>
-      <button
-        type="button"
-        className="pager-btn"
-        disabled={page >= pages - 1}
-        onClick={() => onPage(page + 1)}
-        aria-label="下一页"
-      >
-        ›
-      </button>
-    </div>
   )
 }
 
@@ -571,9 +551,8 @@ function PoolColumn({
   page: number
   onPage: (next: number) => void
 }) {
-  const pages = Math.max(1, Math.ceil(views.length / POOL_PAGE_SIZE))
-  const safePage = Math.min(Math.max(0, page), pages - 1)
-  const pageViews = views.slice(safePage * POOL_PAGE_SIZE, safePage * POOL_PAGE_SIZE + POOL_PAGE_SIZE)
+  const pageSize = runtime.settings.pagination?.pool ?? 4
+  const current = credentialPage(views, page, pageSize)
 
   return (
     <section className="pool" aria-label={title}>
@@ -583,20 +562,22 @@ function PoolColumn({
         {note && <span className="pool-note">{note}</span>}
         <span className="pool-count">{count}</span>
       </header>
-      <div className="pool-body">
+      <div className="pool-body" style={{ '--pool-page-rows': Math.ceil(pageSize / 2), '--pool-page-size': pageSize } as React.CSSProperties}>
         {views.length === 0 ? (
           <div className="pool-empty">{emptyText}</div>
         ) : (
-          pageViews.map((view) => <PoolCard key={view.credential.id} view={view} runtime={runtime} />)
+          current.items.map((view) => <PoolCard key={view.credential.id} view={view} runtime={runtime} />)
         )}
       </div>
-      {views.length > 0 && <PoolPager page={safePage} pages={pages} onPage={onPage} />}
+      {views.length > 0 && <CredentialPager label={`${title}栏`} page={current.page} pages={current.pages} total={views.length} pageSize={current.size} onPage={onPage} />}
     </section>
   )
 }
 
-export function CredentialPools({ views, runtime }: { views: CredentialView[]; runtime: CredentialRuntime }) {
-  const [pages, setPages] = useState<Record<PoolKey, number>>({ normal: 0, uncertain: 0, downshift: 0 })
+export function CredentialPools({ views, runtime, resetKey = '' }: { views: CredentialView[]; runtime: CredentialRuntime; resetKey?: string }) {
+  const pageSize = runtime.settings.pagination?.pool ?? 4
+  const key = `${resetKey}|${pageSize}`
+  const [position, setPosition] = useState<{ key: string; pages: Record<PoolKey, number> }>({ key, pages: { normal: 0, uncertain: 0, downshift: 0 } })
 
   const normal = views.filter((v) => v.verdict === 'normal')
   const uncertainOnly = views.filter((v) => v.verdict === 'uncertain')
@@ -604,8 +585,14 @@ export function CredentialPools({ views, runtime }: { views: CredentialView[]; r
   const downshift = views.filter((v) => v.verdict === 'downshift')
   const uncertain = [...uncertainOnly, ...untested]
 
+  const pages = position.key === key ? position.pages : { normal: 0, uncertain: 0, downshift: 0 }
+  useEffect(() => {
+    const next = { normal: credentialPage(normal, pages.normal, pageSize).page, uncertain: credentialPage(uncertain, pages.uncertain, pageSize).page, downshift: credentialPage(downshift, pages.downshift, pageSize).page }
+    if (position.key !== key || next.normal !== pages.normal || next.uncertain !== pages.uncertain || next.downshift !== pages.downshift) setPosition({ key, pages: next })
+  }, [key, pageSize, normal.length, uncertain.length, downshift.length, position.key, pages.normal, pages.uncertain, pages.downshift])
+
   const turnPage = (key: PoolKey) => (next: number) =>
-    setPages((current) => ({ ...current, [key]: Math.max(0, next) }))
+    setPosition({ key: `${resetKey}|${pageSize}`, pages: { ...pages, [key]: Math.max(0, next) } })
 
   return (
     <div className="pools">
@@ -634,7 +621,7 @@ export function CredentialPools({ views, runtime }: { views: CredentialView[]; r
       <PoolColumn
         tone="downshift"
         title="降档"
-        note="已切换降档前缀"
+        note="当前判定为降档"
         count={downshift.length}
         views={downshift}
         runtime={runtime}

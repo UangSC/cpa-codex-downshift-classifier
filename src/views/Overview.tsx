@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
-import { evaluateEligibility, startInspection } from '../store/engine'
+import { evaluateEligibility, resyncCredential, startInspection } from '../store/actions'
 import { buildViews, sortViews, type CredentialView } from '../lib/derive'
 import { formatRelative } from '../lib/format'
 import { LIGHT_LEGEND } from '../lib/rules'
-import { CredentialGrid, CredentialList, CredentialPools } from '../components/Credentials'
+import { CredentialGrid, CredentialList, CredentialPools, CredentialPager, credentialPage } from '../components/Credentials'
 import { Dot, Icon, Modal, useNow } from '../components/ui'
 import type { VerdictFilter } from '../store/store'
+import { methodLabel } from '../inspection'
+import { activeInspectionCredentialIds, setCredentialExclusions } from '../store/exclusions'
+import { ExclusionIcon } from '../components/ExclusionDrawer'
 
 const FILTER_LABEL: Record<VerdictFilter, string> = {
   all: '全部',
@@ -27,10 +30,13 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   const state = useStore()
   const now = useNow(30_000)
   const { settings, targets, credentials, filters, selected } = state
+  const participating = useMemo(() => credentials.filter((credential) => !credential.inspectionExcluded || state.excluding.includes(credential.id)), [credentials, state.excluding])
+  const excludedCount = credentials.filter((credential) => credential.inspectionExcluded).length
+  const participatingSelected = selected.filter((id) => participating.some((credential) => credential.id === id))
 
   const views = useMemo(
-    () => sortViews(buildViews(credentials, targets, settings), filters.sort),
-    [credentials, targets, settings, filters.sort],
+    () => sortViews(buildViews(participating, targets, settings), filters.sort),
+    [participating, targets, settings, filters.sort],
   )
 
   const counts = useMemo(() => {
@@ -59,6 +65,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
     )
     return views.filter((v) => v.target && running.has(v.target.id)).map((v) => v.credential.id)
   }, [runningTask, views])
+  const exclusionBusyCredentialIds = useMemo(() => activeInspectionCredentialIds(state), [state.tasks, state.targets])
 
   const query = filters.search.trim().toLowerCase()
 
@@ -82,6 +89,14 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
     })
   }, [views, filters, query])
 
+  const pageSize = settings.layout === 'list' ? settings.pagination?.list ?? 10 : settings.pagination?.card ?? 8
+  const paginationKey = JSON.stringify([settings.layout, pageSize, filters.search, filters.verdict, filters.sort, settings.inspectionModel])
+  const [position, setPosition] = useState({ key: paginationKey, page: 0 })
+  const currentPage = credentialPage(filteredViews, position.key === paginationKey ? position.page : 0, pageSize)
+  useEffect(() => {
+    if (position.key !== paginationKey || position.page !== currentPage.page) setPosition({ key: paginationKey, page: currentPage.page })
+  }, [paginationKey, position.key, position.page, currentPage.page])
+
   const retestCredential = (credentialId: string) => {
     const view = views.find((v) => v.credential.id === credentialId)
     if (!view?.target) return
@@ -89,23 +104,27 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   }
 
   const retestSelected = () => {
-    const ids = selected
+    const ids = participatingSelected
       .map((credentialId) => views.find((v) => v.credential.id === credentialId)?.target?.id)
       .filter((id): id is string => Boolean(id))
     if (ids.length > 0) startInspection('manual', ids)
   }
 
   const resync = (credentialId: string) => {
-    void import('../store/engine').then((m) => m.resyncCredential(credentialId))
+    void resyncCredential(credentialId)
   }
 
   const runtime = {
+    canInspect: state.connection === 'connected' && !state.starting && !runningTask && !state.excluding.length,
+    canChangeParticipation: state.connection === 'connected' && !state.starting,
     settings,
     activeCredentialIds,
     now,
     onRetest: retestCredential,
     onOpenDetail,
     onResync: resync,
+    onExclude: (id: string) => { void setCredentialExclusions([id], true) },
+    exclusionBusyCredentialIds,
   }
 
   // / jumps into search, like most tools people already use.
@@ -134,11 +153,11 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         <div>
           <h2>凭证与模型</h2>
           <div className="sub">
-            {credentials.length} 个 codex 凭证 · 检测模型 {settings.inspectionModel} ·{' '}
+            参与 {participating.length} 个 codex 凭证 · 不参与 {excludedCount} 个 · 检测模型 {settings.inspectionModel} ·{' '}
             {lastCheckedAt ? `上次巡检 ${formatRelative(lastCheckedAt, now)}` : '尚未执行过巡检'}
           </div>
           <div className="scope-note" style={{ marginTop: 6 }}>
-            分组前缀作用于凭证的全部模型 · 额度门槛 {settings.quota.minRemainingPercent}% · 并发{' '}
+            {methodLabel(settings.inspectionMethod)} · {settings.routing.mode === 'prefix' ? '模型前缀分组' : '优先级分组'} · 额度门槛 {settings.quota.minRemainingPercent}% · 并发{' '}
             {settings.concurrency.maxObjects}
             {' · '}
             <button type="button" className="btn-link" onClick={() => state.setTab('settings')}>
@@ -147,15 +166,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           </div>
         </div>
         <div className="head-actions">
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => state.setDemoOpen(true)}
-            title="用可重复的模拟情景验证判定规则"
-          >
-            <Icon.Layers />
-            演示场景
-          </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => state.setLegendOpen(true)}>
             <Icon.Info />
             状态含义
@@ -163,7 +173,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <button
             type="button"
             className="btn btn-primary"
-            disabled={Boolean(runningTask) || eligible.length === 0}
+            disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0 || Boolean(runningTask) || eligible.length === 0}
             onClick={() => startInspection('batch')}
             title={
               runningTask
@@ -309,11 +319,11 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <div className="empty-icon">
             <Icon.Search />
           </div>
-          <h3>没有符合条件的凭证</h3>
+          <h3>{!participating.length && excludedCount ? '所有凭证均不参与巡检' : '没有符合条件的凭证'}</h3>
           <p>
             {filters.search || filters.verdict !== 'all'
               ? '试试清除搜索词或切换筛选条件。'
-              : '当前没有可展示的凭证。'}
+              : !participating.length && excludedCount ? '可在右侧不参与巡检池中恢复参与，原分类和配置会保留。' : state.connection === 'connected' ? 'CPA 当前没有 Codex 凭证。请先在 CPA 管理面板添加 Codex 凭证。' : '连接 CPA 后即可读取真实凭证。'}
           </p>
           {(filters.search || filters.verdict !== 'all') && (
             <div style={{ marginTop: 12 }}>
@@ -326,27 +336,32 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
               </button>
             </div>
           )}
+          {!participating.length && excludedCount > 0 && <button type="button" className="btn btn-sm" onClick={() => state.setExclusionDrawerOpen(true)} style={{ marginTop: 12 }}>打开不参与巡检池</button>}
         </div>
       ) : (
         <div className="view-enter" key={settings.layout}>
           {settings.layout === 'pool' ? (
-            <CredentialPools views={filteredViews} runtime={runtime} />
+            <CredentialPools views={filteredViews} runtime={runtime} resetKey={JSON.stringify([filters.search, filters.verdict, filters.sort, settings.inspectionModel])} />
           ) : settings.layout === 'card' ? (
-            <CredentialGrid views={filteredViews} runtime={runtime} />
+            <CredentialGrid views={currentPage.items} runtime={runtime} />
           ) : (
-            <CredentialList views={filteredViews} runtime={runtime} />
+            <CredentialList views={currentPage.items} runtime={runtime} />
           )}
+          {settings.layout !== 'pool' && <CredentialPager label={settings.layout === 'list' ? '列表' : '卡片'} page={currentPage.page} pages={currentPage.pages} total={currentPage.total} pageSize={currentPage.size} onPage={(page) => setPosition({ key: paginationKey, page })} />}
         </div>
       )}
 
-      {selected.length > 0 && (
+      {participatingSelected.length > 0 && (
         <div className="selection-bar" role="region" aria-label="批量操作">
           <span className="sel-text">
-            已选择 <b>{selected.length}</b> 个凭证
+            已选择 <b>{participatingSelected.length}</b> 个凭证<span className="selection-cross-page">跨页选择保留，操作包含全部已选凭证</span>
           </span>
-          <button type="button" className="btn btn-primary btn-sm" onClick={retestSelected}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0 || !!runningTask} onClick={retestSelected}>
             <Icon.Play />
             巡检选中
+          </button>
+          <button type="button" className="btn btn-sm btn-exclude" disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0 || participatingSelected.some((id) => exclusionBusyCredentialIds.includes(id))} onClick={() => void setCredentialExclusions(participatingSelected, true)}>
+            <ExclusionIcon />移入不参与巡检
           </button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => state.clearSelection()}>
             清除
@@ -380,7 +395,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         <div className="divider" />
         <p style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.75 }}>
           一个 Codex 账号降智后不会只在某一个模型名上表现正常，因此判定按凭证计算：只要检测模型得出了降档结论，
-          该凭证注册的全部模型都会切到降档前缀。恢复需要新一轮完整检测通过。
+          {settings.routing.mode === 'prefix' ? '该凭证的全部模型会应用降档前缀。' : '该凭证会应用降档组的优先级配置，模型名称保持不变。'}恢复需要新一轮完整检测通过。
         </p>
         <p style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.75, marginTop: 6 }}>
           一轮检测中的多次重试归属于该轮，不会额外生成一格；取消或未能执行的一轮显示为空心格。

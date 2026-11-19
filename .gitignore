@@ -1,14 +1,44 @@
-# dependencies & artifacts
+# Dependencies and generated artifacts
 node_modules/
 dist/
+web/dist/
+build/
+plugin-data/
 .vite/
+*.dll
+*.so
+*.dylib
+*.exe
+*.zip
+*.tar.gz
+*.sha256
 
-# local scratch
+# Local validation scripts and fixtures are not published
+tests/
+**/*_test.go
+scripts/*smoke.ps1
+scripts/header-echo.mjs
+
+# Local data, credentials and diagnostics
 .shots/
 *.log
-pnpm-install.log
+backups/
+oauth/
+auth/
+usage-records/
+state.json
+config.local.*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.db
 
-# editor / OS
+# Editor and OS files
 .DS_Store
 Thumbs.db
 .idea/

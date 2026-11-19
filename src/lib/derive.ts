@@ -8,6 +8,7 @@
  */
 
 import type { Credential, InspectionRound, Settings, Target, Verdict } from '../types'
+import { buildModelName, stripGroupPrefix } from './prefix'
 
 export interface CredentialView {
   credential: Credential
@@ -73,7 +74,7 @@ export function verdictTone(verdict: Verdict): LightTone {
 
 /* --------------------------------------------------------------- attention */
 
-export type AttentionKind = 'sync' | 'auth' | 'quota'
+export type AttentionKind = 'sync' | 'auth' | 'quota' | 'availability'
 
 export interface AttentionItem {
   kind: AttentionKind
@@ -84,6 +85,7 @@ export interface AttentionItem {
 export function attentionOf(credential: Credential): AttentionItem[] {
   const items: AttentionItem[] = []
   const { sync } = credential
+  if (credential.unavailable) items.push({ kind: 'availability', label: '暂不可用', detail: 'CPA 官方状态报告此凭证暂不可用或正在冷却，当前不发起检测。这不代表认证失效或模型降档。' })
   if (
     sync.status === 'failed' ||
     (sync.desiredGroup != null && sync.appliedGroup !== sync.desiredGroup)
@@ -94,8 +96,8 @@ export function attentionOf(credential: Credential): AttentionItem[] {
       label: '分组待同步',
       detail:
         sync.message ??
-        `检测结论要求写入 ${desired}/，但当前生效的仍是 ${
-          sync.appliedGroup ? `${sync.appliedGroup}/` : '原始模型名'
+        `检测结论要求进入${desired === 'normal' ? '正常' : '降档'}组，但当前生效的仍是${
+          sync.appliedGroup ? sync.appliedGroup === 'normal' ? '正常组' : '降档组' : '未分组'
         }。`,
     })
   }
@@ -103,7 +105,7 @@ export function attentionOf(credential: Credential): AttentionItem[] {
     items.push({
       kind: 'auth',
       label: '认证失效',
-      detail: '凭证需要重新登录。认证问题不属于模型降档，不会写入 downshift/。',
+      detail: '凭证需要重新登录。认证问题不属于模型降档，分组保持不变。',
     })
   }
   if (credential.quota.status === 'exhausted') {
@@ -129,6 +131,7 @@ export function lowestQuota(credential: Credential): number | null {
 
 export function quotaBlockedReason(credential: Credential, settings: Settings): string | null {
   if (credential.auth === 'expired') return '认证失效，需重新登录'
+  if (credential.unavailable) return 'CPA 当前报告凭证暂不可用或正在冷却'
   if (credential.quota.status === 'exhausted') return '额度已用尽'
   const lowest = lowestQuota(credential)
   if (lowest == null) {
@@ -142,11 +145,15 @@ export function quotaBlockedReason(credential: Credential, settings: Settings): 
 
 /** Registered model id for the inspected model under the credential's group prefix. */
 export function routedModelName(credential: Credential, model: string, settings: Settings): string {
-  if (!credential.group) return model
+  if (typeof credential.prefix === 'string') {
+    const prefix = credential.prefix.trim().replace(/\/+$/g, '')
+    return prefix ? `${prefix}/${model.trim()}` : model.trim()
+  }
+  if (!credential.group || settings.routing.mode === 'priority') return stripGroupPrefix(model, settings.prefixes)
   const prefix =
     credential.group === 'normal' ? settings.prefixes.normal : settings.prefixes.downshift
   // An empty normal prefix means "keep the original model name".
-  return prefix ? `${prefix}${model}` : model
+  return buildModelName(prefix, stripGroupPrefix(model, settings.prefixes))
 }
 
 /* ------------------------------------------------------------------- views */

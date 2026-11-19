@@ -1,8 +1,16 @@
 {
   "name": "cpa-codex-downshift-classifier",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.2",
+  "description": "通过 CPA 官方宿主接口检测和分类 Codex 凭证的开发中插件",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UangSC/cpa-codex-downshift-classifier.git"
+  },
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

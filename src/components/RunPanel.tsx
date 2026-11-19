@@ -1,5 +1,5 @@
 import { useStore } from '../store/store'
-import { cancelTask } from '../store/engine'
+import { cancelTask } from '../store/actions'
 import { formatRelative } from '../lib/format'
 import { Chip, Drawer, Icon, PlanMark, SecretName, useNow, type ChipTone } from './ui'
 import type { InspectionTask, RunItemState } from '../types'
@@ -115,6 +115,7 @@ export function RunPanel() {
   const open = useStore((s) => s.runPanelOpen)
   const setOpen = useStore((s) => s.setRunPanel)
   const tasks = useStore((s) => s.tasks)
+  const connected = useStore((s) => s.connection === 'connected')
   const now = useNow(5_000)
 
   const running = tasks.find((t) => t.status === 'running')
@@ -134,7 +135,7 @@ export function RunPanel() {
       }
       head={
         running ? (
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => cancelTask(running.id)}>
+          <button type="button" className="btn btn-sm btn-danger" disabled={!connected} onClick={() => cancelTask(running.id)}>
             <Icon.Stop />
             停止
           </button>

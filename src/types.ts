@@ -11,7 +11,8 @@
  */
 
 /** The behavioural tests this plugin can run. */
-export type TestKind = 'candy' | 'fingerprint'
+export type TestKind = 'candy' | 'fingerprint' | (string & {})
+export type ReasoningEffort = 'low' | 'medium' | 'high'
 
 /**
  * Conclusion of an inspection for one target.
@@ -35,6 +36,7 @@ export type ReasonCode =
   | 'quota-exhausted'
   | 'cancelled'
   | 'no-model-response'
+  | 'method-result'
 
 export type RoundOutcome = 'normal' | 'downshift' | 'uncertain' | 'cancelled' | 'blocked'
 
@@ -66,6 +68,10 @@ export interface RequestAttempt {
   /** The backoff delay waited before this attempt; 0 for the first attempt. */
   waitMs: number
   durationMs: number
+  test?: TestKind
+  challengeIndex?: number
+  retryIndex?: number
+  validResponse?: boolean
 }
 
 export interface CandyEvidence {
@@ -128,6 +134,7 @@ export interface RoundEvidence {
   errors: { at: string; code: number; message: string }[]
   usage: { inputTokens: number; outputTokens: number } | null
   durationMs: number
+  method?: { id: TestKind; label: string; details: { label: string; value: string }[] }
 }
 
 /* ------------------------------------------------------------- sync state */
@@ -138,6 +145,7 @@ export interface RoundEvidence {
  * One group is applied to every model the credential exposes.
  */
 export interface GroupSync {
+  mode?: GroupingMode
   desiredGroup: GroupKey | null
   appliedGroup: GroupKey | null
   status: 'not-needed' | 'synced' | 'pending' | 'failed'
@@ -161,6 +169,7 @@ export interface InspectionRound {
   evidence: RoundEvidence
   /** Sync outcome produced by this round, if the round asked for a prefix change. */
   sync: GroupSync | null
+  reasoningEffort?: ReasoningEffort
 }
 
 /* ---------------------------------------------------------------- targets */
@@ -174,13 +183,22 @@ export interface Credential {
   plan: string
   auth: 'valid' | 'expired'
   /** `busy` means the credential currently serves live sessions; checks wait for it. */
-  availability: 'idle' | 'busy'
+  availability: 'idle' | 'busy' | 'unknown'
+  /** CPA 官方报告的暂不可用或冷却，不等同于令牌失效。 */
+  unavailable?: boolean
   busySessions: number
   quota: Quota
   models: string[]
+  /** CPA 官方凭证字段中当前实际生效的模型前缀；模型列表仍使用原始 ID。 */
+  prefix?: string
   /** Routing group applied to every model of this credential. */
   group: GroupKey | null
   sync: GroupSync
+  /** CPA 当前实际生效的调度数值。 */
+  routing?: RoutingValues
+  /** 只控制是否参与插件巡检，不改变 CPA 的凭证启用状态或分组。 */
+  inspectionExcluded?: boolean
+  excludedAt?: string | null
 }
 
 /**
@@ -236,7 +254,7 @@ export interface InspectionTask {
 /* --------------------------------------------------------------- settings */
 
 export interface RetryPolicy {
-  /** Retries *after* the first attempt, so total attempts = maxRetries + 1. */
+  /** 本轮所有检测题共用的额外重试次数。成功题不重复执行。 */
   maxRetries: number
   /** Delay before the first retry. */
   baseDelayMs: number
@@ -250,6 +268,21 @@ export interface PrefixSettings {
   downshift: string
 }
 
+export interface RoutingValues {
+  priority: number
+  /** CPA 实际继承权重或旧设置兼容值；插件不修改权重。 */
+  weight: number
+}
+
+export type RoutingGroup = GroupKey | 'ungrouped'
+export type GroupingMode = 'prefix' | 'priority'
+
+export interface RoutingSettings {
+  mode: GroupingMode
+  groups: Record<RoutingGroup, RoutingValues>
+  overrides: Record<string, RoutingValues>
+}
+
 export interface QuotaGate {
   /** Only credentials whose lowest remaining window is *above* this run their checks. */
   minRemainingPercent: number
@@ -259,17 +292,19 @@ export interface QuotaGate {
 
 export interface ScheduleSettings {
   enabled: boolean
-  mode: 'interval' | 'daily'
+  mode: 'interval' | 'daily' | 'windows'
   intervalMinutes: number
   /** `HH:mm`, local time, only used when `mode === 'daily'`. */
   dailyTime: string
+  windows: { id: string; startMinute: number; endMinute: number }[]
   /** Populated only while `enabled`; cleared when scheduling is turned off. */
   nextRunAt: string | null
 }
 
 export interface Settings {
   prefixes: PrefixSettings
-  tests: TestKind[]
+  routing: RoutingSettings
+  inspectionMethod: TestKind
   retry: RetryPolicy
   /** A target is judged downshift when every one of the last N rounds carried a 5xx. */
   failureRule: { windowRounds: number }
@@ -280,6 +315,10 @@ export interface Settings {
    * *all* models of a credential, so the UI never needs one verdict per model name.
    */
   inspectionModel: string
+  /** 真实巡检请求使用的思考程度，只允许这三档。 */
+  reasoningEffort: ReasoningEffort
+  headerOverrides: Record<string, string>
+  pagination: { list: number; card: number; pool: number }
   /** Presentation preference for the credential list. */
   layout: 'list' | 'card' | 'pool'
   /** Blur credential identities (the eye button in the overview toolbar). */
@@ -295,4 +334,13 @@ export interface Toast {
   tone: 'info' | 'success' | 'warning' | 'danger'
   title: string
   detail?: string
+}
+
+export interface InspectionConfirmation {
+  scope: 'manual' | 'batch'
+  credentialIds: string[]
+  settings: Settings
+  revision: string
+  excludedCount: number
+  requestedCount: number
 }

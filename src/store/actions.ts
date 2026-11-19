@@ -1,0 +1,131 @@
+// 前端操作编排：检查资格、确认写入权限并提交 CPA 管理请求；不在浏览器推理。
+import { backend, type RoutingRequest } from '../api'
+import type { InspectionTask, Settings, Target, InspectionConfirmation } from '../types'
+import { lowestQuota } from '../lib/derive'
+import { useStore } from './store'
+import { refreshSnapshot } from './live'
+import { currentManagementKey } from '../api/auth'
+import { canSkipManualReminder, manualWritePolicy, rememberManualReminder, restoreManualReminder } from '../lib/manualInspectionConsent'
+
+let preparingInspection = false
+
+export interface Eligibility { runnable: boolean; mustWait?: boolean; note: string }
+export function evaluateEligibility(target: Target, settings: Settings): Eligibility {
+  const credential = useStore.getState().credentials.find((item) => item.id === target.credentialId)
+  if (!credential) return { runnable: false, note: '凭证已不存在' }
+  if (credential.inspectionExcluded) return { runnable: false, note: '该凭证不参与巡检，请先从侧边抽屉恢复参与' }
+  if (useStore.getState().excluding.includes(credential.id)) return { runnable: false, note: '该凭证的参与状态正在更新' }
+  if (credential.auth === 'expired') return { runnable: false, note: '认证失效：需要重新登录，不属于模型降档' }
+  if (credential.unavailable) return { runnable: false, note: 'CPA 当前报告此凭证不可用或处于冷却，暂不检测' }
+  const lowest = lowestQuota(credential)
+  if (credential.quota.status === 'exhausted' || lowest === 0) return { runnable: false, note: '额度已用尽，不属于模型降档' }
+  if (lowest === null && settings.quota.unknownPolicy === 'skip') return { runnable: false, note: '额度未知：按设置跳过检测' }
+  if (lowest !== null && lowest <= settings.quota.minRemainingPercent) return { runnable: false, note: `剩余额度不高于阈值 ${settings.quota.minRemainingPercent}%，本轮跳过` }
+  return { runnable: true, mustWait: credential.availability === 'busy', note: credential.availability === 'busy' ? '凭证会话中，等待空闲' : lowest === null ? '额度未知，仍按设置检测' : '' }
+}
+function notifyError(title: string, error: unknown) {
+  useStore.getState().notify({ tone: 'danger', title, detail: error instanceof Error ? error.message : String(error) })
+}
+export async function startInspection(scope: InspectionTask['scope'], targetIds?: string[]): Promise<string | null> {
+  const state = useStore.getState()
+  if (scope === 'scheduled') { notifyError('定时巡检由服务端管理', new Error('请在设置中开启计划并确认后台配置修改权限')); return null }
+  if (preparingInspection || state.connection !== 'connected' || state.starting || state.settingsSaving || state.pendingSettingsConfirmation || state.inspectionConfirmation || state.tasks.some((task) => task.status === 'running')) return null
+  const credentialIds = targetIds ? [...new Set(targetIds.map((id) => state.targets.find((target) => target.id === id)?.credentialId).filter((id): id is string => !!id))] : undefined
+  if (credentialIds?.length === 0) return null
+  const requested = credentialIds ?? state.credentials.map((credential) => credential.id)
+  preparingInspection = true
+  try {
+    const requestKey = currentManagementKey()
+    const skip = await canSkipManualReminder(state.settings, requestKey)
+    const current = useStore.getState()
+    if (current.connection !== 'connected' || current.starting || current.settingsSaving || current.pendingSettingsConfirmation || current.inspectionConfirmation || current.tasks.some((task) => task.status === 'running')) return null
+    const eligible = eligibleIds(requested)
+    if (!eligible.length) { notifyError('没有可巡检的凭证', new Error('不参与巡检或状态不满足条件的凭证不会执行')); return null }
+    const pending = confirmation(scope, eligible, requested.length)
+    if (skip && currentManagementKey() === requestKey && manualWritePolicy(state.settings) === manualWritePolicy(current.settings)) {
+      return await submitInspection(pending, false, false)
+    }
+    useStore.setState({ inspectionConfirmation: pending, inspectionConfirmError: '' })
+    return null
+  } finally { preparingInspection = false }
+}
+
+function eligibleIds(ids: string[]): string[] {
+  const state = useStore.getState()
+  return ids.filter((id) => {
+    const target = state.targets.find((entry) => entry.credentialId === id && entry.model === state.settings.inspectionModel)
+    return !!target && evaluateEligibility(target, state.settings).runnable
+  })
+}
+
+function confirmation(scope: 'manual' | 'batch', ids: string[], requestedCount: number): InspectionConfirmation {
+  const state = useStore.getState()
+  return { scope, credentialIds: ids, settings: structuredClone(state.settings), revision: state.configChangesRevision,
+    requestedCount, excludedCount: state.credentials.filter((entry) => entry.inspectionExcluded || state.excluding.includes(entry.id)).length }
+}
+
+/** 唯一提交入口：只有“我已知晓”的点击处理调用，并绑定已展示的配置版本。 */
+export async function acknowledgeInspection(rememberNextTime = false): Promise<string | null> {
+  const pending = useStore.getState().inspectionConfirmation
+  if (!pending) return null
+  return submitInspection(pending, rememberNextTime)
+}
+
+async function submitInspection(pending: InspectionConfirmation, rememberNextTime: boolean, explicitConfirmation = true): Promise<string | null> {
+  const state = useStore.getState()
+  if (state.starting || state.connection !== 'connected' || state.tasks.some((task) => task.status === 'running')) return null
+  const eligible = eligibleIds(pending.credentialIds)
+  if (!eligible.length) { useStore.setState({ inspectionConfirmError: '这些凭证已不符合巡检条件，请取消后重新选择。' }); return null }
+  if (!pending.revision) { useStore.setState({ inspectionConfirmError: '后端未提供巡检配置版本，请刷新插件后重试。' }); return null }
+  if (pending.revision !== state.configChangesRevision || eligible.length !== pending.credentialIds.length) {
+    useStore.setState({ inspectionConfirmation: confirmation(pending.scope, eligible, pending.requestedCount), inspectionConfirmError: '巡检配置或参与范围已变化，请核对更新后的内容并再次点击“我已知晓”。' })
+    return null
+  }
+  useStore.setState({ starting: true, inspectionConfirmError: '', mutationVersion: state.mutationVersion + 1 })
+  const requestKey = currentManagementKey()
+  try {
+    const response = await backend.startChecks({ credentialIds: eligible, scope: pending.scope,
+      model: pending.settings.inspectionModel, method: pending.settings.inspectionMethod,
+      acknowledgeConfigChanges: true, configChangesMode: pending.settings.routing.mode, configChangesRevision: pending.revision })
+    if (rememberNextTime && !await rememberManualReminder(pending.settings, requestKey)) {
+      state.notify({ tone: 'warning', title: '本次巡检已启动', detail: '浏览器未能保存提醒偏好，下次仍会正常提醒。' })
+    }
+    else if (!rememberNextTime && explicitConfirmation && currentManagementKey() === requestKey) restoreManualReminder()
+    useStore.setState({ inspectionConfirmation: null, inspectionConfirmError: '' })
+    state.setRunPanel(true)
+    await refreshSnapshot(true)
+    return response.taskId
+  } catch (error) {
+    await refreshSnapshot(true)
+    const latest = useStore.getState()
+    const updated = eligibleIds(pending.credentialIds)
+    useStore.setState({ inspectionConfirmation: updated.length ? confirmation(pending.scope, updated, pending.requestedCount) : pending,
+      inspectionConfirmError: error instanceof Error ? error.message : String(error) })
+    if (latest.connection !== 'connected') notifyError('巡检尚未开始', error)
+    return null
+  }
+  finally { useStore.setState({ starting: false }) }
+}
+export async function cancelTask(id: string) {
+  useStore.setState((state) => ({ mutationVersion: state.mutationVersion + 1 }))
+  try { await backend.cancelTask(id); await refreshSnapshot(true) } catch (error) { notifyError('停止巡检失败', error) }
+}
+export async function resyncCredential(id: string) {
+  if (useStore.getState().connection !== 'connected' || useStore.getState().syncing.includes(id)) return
+  useStore.setState((state) => ({ syncing: [...new Set([...state.syncing, id])], mutationVersion: state.mutationVersion + 1 }))
+  try {
+    const response = await backend.sync({ credentialId: id })
+    await refreshSnapshot(true)
+    useStore.getState().notify({ tone: response.status === 'synced' ? 'success' : 'danger', title: response.status === 'synced' ? '分组已同步' : '分组同步失败', detail: response.message ?? undefined })
+  } catch (error) { notifyError('分组同步失败', error) }
+  finally { useStore.setState((state) => ({ syncing: state.syncing.filter((value) => value !== id) })) }
+}
+export async function saveCredentialRouting(request: RoutingRequest) {
+  const state = useStore.getState()
+  if (state.connection !== 'connected' || state.syncing.includes(request.credentialId)) return
+  if (request.weight !== undefined) { notifyError('权重保持继承', new Error('权重继承 CPA 当前配置，插件只调整优先级')); return }
+  useStore.setState((current) => ({ syncing: [...current.syncing, request.credentialId], mutationVersion: current.mutationVersion + 1 }))
+  try { await backend.saveRouting(request); await refreshSnapshot(true) }
+  catch (error) { notifyError('调度设置保存失败', error) }
+  finally { useStore.setState((current) => ({ syncing: current.syncing.filter((id) => id !== request.credentialId) })) }
+}

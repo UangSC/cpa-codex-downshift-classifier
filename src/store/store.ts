@@ -1,292 +1,206 @@
 import { create } from 'zustand'
-import type {
-  Credential,
-  InspectionTask,
-  Settings,
-  Target,
-  Toast,
-} from '../types'
-import { DEFAULT_SETTINGS, seedBehaviours, seedCredentials, seedTargets, type SimBehaviour } from '../data/seed'
-import { analyzePrefixes } from '../lib/prefix'
-
-const SETTINGS_KEY = 'cpa-downshift:settings:v1'
+import type { Credential, InspectionTask, Settings, Target, Toast, InspectionConfirmation } from '../types'
+import { backend, EMPTY_CAPABILITIES, type Capabilities, type Snapshot, type RequestHeaderProfile } from '../api'
+import { DEFAULT_SETTINGS } from '../data/defaults'
+import { normalizeRouting } from '../lib/routing'
+import { changedSettings, mergeSettingsDraft, rebaseSettingsDraft, settingsErrors } from '../lib/settingsDraft'
+import { APIError } from '../api/plugin'
+import { needsScheduledConsent, sameInspectionRisk } from '../lib/inspectionConsent'
 
 export type VerdictFilter = 'all' | 'normal' | 'downshift' | 'uncertain' | 'untested' | 'attention'
 export type SortKey = 'recent' | 'quota' | 'name'
 export type TabKey = 'overview' | 'history' | 'settings'
-
-export interface Filters {
-  search: string
-  verdict: VerdictFilter
-  sort: SortKey
-}
+export interface Filters { search: string; verdict: VerdictFilter; sort: SortKey }
+type ConnectionState = 'connecting' | 'connected' | 'error' | 'stopped'
 
 interface AppState {
   credentials: Credential[]
   targets: Target[]
-  behaviours: Record<string, SimBehaviour>
   settings: Settings
+  settingsDraft: Settings | null
+  settingsSaving: boolean
+  pendingTab: TabKey | null
   tasks: InspectionTask[]
-
+  capabilities: Capabilities
+  connection: ConnectionState
+  connectionError: string
+  authenticated: boolean
+  lastUpdatedAt: string | null
   selected: string[]
   filters: Filters
   toasts: Toast[]
   tab: TabKey
-  /** Where the loaded snapshot came from; drives the permanent environment badge. */
-  source: 'simulated' | 'live'
   sourceDetail: string
-
   detail: { targetId: string; roundId: string | null } | null
   runPanelOpen: boolean
-  demoOpen: boolean
   legendOpen: boolean
   syncing: string[]
-
-  /* actions */
+  starting: boolean
+  mutationVersion: number
+  configChangesRevision: string
+  exclusionDrawerOpen: boolean
+  excluding: string[]
+  inspectionConfirmation: InspectionConfirmation | null
+  inspectionConfirmError: string
+  pendingSettingsConfirmation: Settings | null
+  settingsConfirmError: string
+  requestHeaderProfile?: RequestHeaderProfile
   setTab: (tab: TabKey) => void
-  /** Applies a backend snapshot and marks where the data came from. */
-  hydrate: (snapshot: {
-    credentials: Credential[]
-    targets: Target[]
-    settings: Settings
-    source: 'simulated' | 'live'
-    sourceDetail?: string
-  }) => void
+  hydrate: (snapshot: Snapshot) => void
   setFilters: (patch: Partial<Filters>) => void
-  toggleSelect: (targetId: string) => void
+  toggleSelect: (id: string) => void
   selectTargets: (ids: string[]) => void
   clearSelection: () => void
   updateSettings: (patch: Partial<Settings>) => void
+  editSettingsDraft: (patch: Partial<Settings>) => void
+  saveSettingsDraft: (acknowledgeScheduledConfigChanges?: boolean) => Promise<boolean>
+  discardSettingsDraft: () => void
+  cancelSettingsNavigation: () => void
   ensureTargetsForModel: (model: string) => void
-  savePrefixes: (normal: string, downshift: string) => void
-  setScheduleEnabled: (enabled: boolean) => void
   openDetail: (targetId: string, roundId?: string | null) => void
   closeDetail: () => void
   setRunPanel: (open: boolean) => void
-  setDemoOpen: (open: boolean) => void
   setLegendOpen: (open: boolean) => void
   dismissToast: (id: string) => void
   notify: (toast: Omit<Toast, 'id'>) => void
-  resetDemo: () => void
-  releaseCredential: (credentialId: string) => void
-  markBusy: (credentialId: string, sessions?: number) => void
+  setExclusionDrawerOpen: (open: boolean) => void
+  closeInspectionConfirmation: () => void
+  closeSettingsConfirmation: () => void
 }
 
-function loadSettings(): Settings {
+const PREFERENCES_KEY = 'cpa-downshift:preferences:v1'
+type Preferences = Pick<Settings, 'theme' | 'layout' | 'maskNames'>
+function preferences(): Partial<Preferences> {
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return structuredClone(DEFAULT_SETTINGS)
-    const parsed = JSON.parse(raw) as Partial<Settings>
+    const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) ?? localStorage.getItem('cpa-downshift:settings:v2') ?? '{}') as Partial<Preferences>
     return {
-      ...structuredClone(DEFAULT_SETTINGS),
-      ...parsed,
-      prefixes: { ...DEFAULT_SETTINGS.prefixes, ...(parsed.prefixes ?? {}) },
-      retry: { ...DEFAULT_SETTINGS.retry, ...(parsed.retry ?? {}) },
-      failureRule: { ...DEFAULT_SETTINGS.failureRule, ...(parsed.failureRule ?? {}) },
-      quota: { ...DEFAULT_SETTINGS.quota, ...(parsed.quota ?? {}) },
-      concurrency: { ...DEFAULT_SETTINGS.concurrency, ...(parsed.concurrency ?? {}) },
-      schedule: { ...DEFAULT_SETTINGS.schedule, ...(parsed.schedule ?? {}) },
+      ...(saved.theme === 'dark' || saved.theme === 'light' ? { theme: saved.theme } : {}),
+      ...(['pool', 'list', 'card'].includes(saved.layout ?? '') ? { layout: saved.layout } : {}),
+      ...(typeof saved.maskNames === 'boolean' ? { maskNames: saved.maskNames } : {}),
     }
-  } catch {
-    return structuredClone(DEFAULT_SETTINGS)
-  }
+  } catch { return {} }
 }
-
-function persist(settings: Settings) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-  } catch {
-    /* storage may be unavailable in a sandboxed resource page */
-  }
-}
-
-export function freshData() {
-  return {
-    credentials: structuredClone(seedCredentials),
-    targets: structuredClone(seedTargets),
-    behaviours: { ...seedBehaviours },
-  }
-}
-
 let toastSeq = 0
-
 export const useStore = create<AppState>((set, get) => ({
-  credentials: [],
-  targets: [],
-  behaviours: {},
-  settings: loadSettings(),
-  source: 'simulated',
-  sourceDetail: '本地模拟数据：不会调用 CLIProxyAPI，也不会改动真实凭证文件。',
-  tasks: [],
-  selected: [],
-  filters: { search: '', verdict: 'all', sort: 'recent' },
-  toasts: [],
-  tab: 'overview',
-  detail: null,
-  runPanelOpen: false,
-  demoOpen: false,
-  legendOpen: false,
-  syncing: [],
+  credentials: [], targets: [], settings: { ...structuredClone(DEFAULT_SETTINGS), ...preferences() },
+  settingsDraft: null, settingsSaving: false, pendingTab: null, tasks: [],
+  capabilities: { ...EMPTY_CAPABILITIES }, connection: 'connecting', connectionError: '', authenticated: false, lastUpdatedAt: null,
+  selected: [], filters: { search: '', verdict: 'all', sort: 'recent' }, toasts: [], tab: 'overview',
+  sourceDetail: '', detail: null, runPanelOpen: false, legendOpen: false, syncing: [], starting: false, mutationVersion: 0,
+  configChangesRevision: '', exclusionDrawerOpen: false, excluding: [],
+  inspectionConfirmation: null, inspectionConfirmError: '', pendingSettingsConfirmation: null, settingsConfirmError: '',
 
-  setTab: (tab) => set({ tab }),
-
+  setTab: (tab) => {
+    const state = get()
+    if (state.settingsSaving) return
+    if (tab !== 'settings' && state.tab === 'settings' && changedSettings(state.settings, state.settingsDraft).length) { set({ pendingTab: tab }); return }
+    set({ tab, pendingTab: null, settingsDraft: tab === 'settings' ? state.settingsDraft : null })
+  },
   hydrate: (snapshot) => {
-    // Preferences saved in this browser win over seeded defaults, but a live snapshot is
-    // authoritative for its own settings.
-    const settings = snapshot.source === 'simulated' ? loadSettings() : snapshot.settings
-    const behaviours =
-      snapshot.source === 'simulated' ? { ...seedBehaviours } : ({} as Record<string, SimBehaviour>)
-    set({
-      credentials: snapshot.credentials,
-      targets: snapshot.targets,
-      behaviours,
-      settings,
-      source: snapshot.source,
-      sourceDetail: snapshot.sourceDetail ?? '',
-    })
-  },
-
-  setFilters: (patch) => set((s) => ({ filters: { ...s.filters, ...patch } })),
-
-  toggleSelect: (targetId) =>
-    set((s) => ({
-      selected: s.selected.includes(targetId)
-        ? s.selected.filter((id) => id !== targetId)
-        : [...s.selected, targetId],
-    })),
-
-  selectTargets: (ids) => set({ selected: ids }),
-  clearSelection: () => set({ selected: [] }),
-
-  updateSettings: (patch) => {
-    const previous = get().settings
-    const next = { ...previous, ...patch }
-    persist(next)
-    set({ settings: next })
-    if (next.inspectionModel !== previous.inspectionModel) {
-      get().ensureTargetsForModel(next.inspectionModel)
+    if (snapshot.source !== 'live' || !Array.isArray(snapshot.credentials) || !Array.isArray(snapshot.targets) || !snapshot.settings) throw new Error('CPA 插件返回的状态格式无效')
+    const settings = {
+      ...snapshot.settings, reasoningEffort: snapshot.settings.reasoningEffort ?? DEFAULT_SETTINGS.reasoningEffort,
+      headerOverrides: snapshot.settings.headerOverrides ?? {},
+      pagination: { ...DEFAULT_SETTINGS.pagination, ...snapshot.settings.pagination },
+      routing: normalizeRouting(snapshot.settings.routing),
+      schedule: { ...DEFAULT_SETTINGS.schedule, ...snapshot.settings.schedule, windows: snapshot.settings.schedule?.windows ?? [] },
+      ...preferences(),
     }
+    const current = get()
+    const pinned = new Set(current.excluding)
+    const credentials = pinned.size ? snapshot.credentials.map((credential) => pinned.has(credential.id)
+      ? current.credentials.find((previous) => previous.id === credential.id) ?? credential : credential) : snapshot.credentials
+    set({
+      credentials, targets: snapshot.targets, tasks: snapshot.tasks ?? [],
+      configChangesRevision: snapshot.configChangesRevision ?? '',
+      requestHeaderProfile: snapshot.requestHeaderProfile,
+      settings,
+      settingsDraft: get().settingsDraft ? rebaseSettingsDraft(get().settings, get().settingsDraft!, settings) : null,
+      capabilities: { ...EMPTY_CAPABILITIES, ...snapshot.capabilities,
+        weightEditingEnabled: false,
+        fingerprintAvailable: snapshot.capabilities?.fingerprintAvailable === true,
+        availabilityKnown: snapshot.capabilities?.availabilityKnown === true },
+      connection: 'connected', connectionError: '', authenticated: true, sourceDetail: snapshot.sourceDetail ?? '',
+      lastUpdatedAt: new Date().toISOString(),
+      selected: get().selected.filter((id) => snapshot.credentials.some((credential) => credential.id === id)),
+    })
+    get().ensureTargetsForModel(settings.inspectionModel)
   },
-
+  setFilters: (patch) => set((state) => ({ filters: { ...state.filters, ...patch } })),
+  toggleSelect: (id) => set((state) => ({ selected: state.selected.includes(id) ? state.selected.filter((value) => value !== id) : [...state.selected, id] })),
+  selectTargets: (ids) => set({ selected: ids }), clearSelection: () => set({ selected: [] }),
+  updateSettings: (patch) => {
+    const state = get()
+    const next = { ...state.settings,
+      ...(patch.theme ? { theme: patch.theme } : {}),
+      ...(patch.layout ? { layout: patch.layout } : {}),
+      ...(typeof patch.maskNames === 'boolean' ? { maskNames: patch.maskNames } : {}),
+    }
+    try { localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ theme: next.theme, layout: next.layout, maskNames: next.maskNames })) } catch { /* 界面偏好可在内存中使用。 */ }
+    set({ settings: next })
+  },
+  editSettingsDraft: (patch) => {
+    if (get().settingsSaving) return
+    set((state) => ({ settingsDraft: { ...(state.settingsDraft ?? structuredClone(state.settings)), ...patch } }))
+  },
+  saveSettingsDraft: async (acknowledgeScheduledConfigChanges = false) => {
+    const state = get()
+    if (state.settingsSaving) return false
+    if (!state.settingsDraft) return true
+    const errors = settingsErrors(state.settingsDraft, state.requestHeaderProfile?.managedHeaders)
+    if (state.connection !== 'connected') errors.push('CPA 尚未连接，不能保存配置')
+    if (['normal', 'downshift', 'ungrouped'].some((group) =>
+      state.settingsDraft!.routing.groups[group as keyof Settings['routing']['groups']].weight !== state.settings.routing.groups[group as keyof Settings['routing']['groups']].weight)) errors.push('权重继承 CPA 当前配置，不能由插件修改')
+    if (state.settingsDraft.inspectionMethod === 'fingerprint' && !state.capabilities.fingerprintAvailable) errors.push('后端尚未提供模型指纹参考库')
+    if (errors.length) { state.notify({ tone: 'danger', title: '设置未保存', detail: errors.join('；') }); return false }
+    const next = mergeSettingsDraft(state.settings, state.settingsDraft)
+    if (needsScheduledConsent(state.settings, next)) {
+      if (!acknowledgeScheduledConfigChanges) {
+        set({ pendingSettingsConfirmation: structuredClone(next), settingsConfirmError: '' })
+        return false
+      }
+      if (!state.pendingSettingsConfirmation || !sameInspectionRisk(state.pendingSettingsConfirmation, next)) {
+        set({ pendingSettingsConfirmation: structuredClone(next), settingsConfirmError: '巡检配置已变化，请核对更新后的内容并再次确认。' })
+        return false
+      }
+    }
+    set({ settingsSaving: true, mutationVersion: state.mutationVersion + 1 })
+    try {
+      await backend.saveSettings(next, acknowledgeScheduledConfigChanges)
+      const snapshot = await backend.loadSnapshot()
+      get().hydrate(snapshot)
+      set({ settingsDraft: null, pendingTab: null, pendingSettingsConfirmation: null, settingsConfirmError: '', tab: state.pendingTab ?? state.tab })
+      get().notify({ tone: 'success', title: '设置已保存', detail: '服务端已保存配置，后续巡检将使用新设置。' })
+      return true
+    } catch (error) {
+      try { get().hydrate(await backend.loadSnapshot()) } catch { /* 读取失败时保留当前状态与草稿，下一次自动刷新会继续检查连接。 */ }
+      const partial = error instanceof APIError && error.status === 409 && error.message.startsWith('设置已保存')
+      if (state.pendingSettingsConfirmation) set({ settingsConfirmError: error instanceof Error ? error.message : String(error) })
+      get().notify({ tone: partial ? 'warning' : 'danger', title: partial ? '设置已保存，部分凭证待同步' : '设置保存失败', detail: error instanceof Error ? error.message : String(error) })
+      return false
+    } finally { set({ settingsSaving: false }) }
+  },
+  discardSettingsDraft: () => { if (!get().settingsSaving) set((state) => ({ settingsDraft: null, pendingTab: null, tab: state.pendingTab ?? state.tab })) },
+  cancelSettingsNavigation: () => set({ pendingTab: null }),
   ensureTargetsForModel: (model) => {
     const { credentials, targets } = get()
-    const missing = credentials.filter(
-      (c) => !targets.some((t) => t.credentialId === c.id && t.model === model),
-    )
-    if (missing.length === 0) return
-    set({
-      targets: [
-        ...targets,
-        ...missing.map((c) => ({
-          id: `${c.id}::${model}`,
-          credentialId: c.id,
-          model,
-          verdict: 'untested' as const,
-          rounds: [],
-          blocked: null,
-        })),
-      ],
-    })
+    const missing = credentials.filter((credential) => !targets.some((target) => target.credentialId === credential.id && target.model === model))
+    if (missing.length) set({ targets: [...targets, ...missing.map((credential) => ({
+      id: `${credential.id}::${model}`, credentialId: credential.id, model, verdict: 'untested' as const, rounds: [], blocked: null,
+    }))] })
   },
-
-  savePrefixes: (normal, downshift) => {
-    const settings = get().settings
-    const next: Settings = { ...settings, prefixes: { normal, downshift } }
-    const analysis = analyzePrefixes(next.prefixes)
-    if (!analysis.valid) return
-    persist(next)
-
-    // Group membership lives on the credential, so every effective model name is derived
-    // from the new prefix immediately — the canonical model name never changes.
-    set({ settings: next })
-    const grouped = get().credentials.filter((c) => c.group)
-    const normalCopy = normal ? `正常组使用 ${normal}` : '正常组不加前缀（保持原始模型名）'
-    get().notify({
-      tone: 'success',
-      title: '模型前缀已保存',
-      detail:
-        grouped.length > 0
-          ? `${normalCopy}，降档组使用 ${downshift}；${grouped.length} 个已分组凭证的 ${grouped.reduce(
-              (n, c) => n + c.models.length,
-              0,
-            )} 个模型名会立即按新规则生效。`
-          : `${normalCopy}，降档组使用 ${downshift}。新前缀将在下一次写入分组时生效。`,
-    })
-  },
-
-  setScheduleEnabled: (enabled) => {
-    const settings = get().settings
-    const next: Settings = {
-      ...settings,
-      schedule: { ...settings.schedule, enabled, nextRunAt: null },
-    }
-    persist(next)
-    set({ settings: next })
-    if (!enabled) {
-      get().notify({
-        tone: 'info',
-        title: '已关闭定时巡检',
-        detail: '不会再产生新的定时任务，正在执行的任务不受影响。',
-      })
-    }
-  },
-
-  openDetail: (targetId, roundId = null) => set({ detail: { targetId, roundId } }),
-  closeDetail: () => set({ detail: null }),
-  setRunPanel: (open) => set({ runPanelOpen: open }),
-  setDemoOpen: (open) => set({ demoOpen: open }),
-  setLegendOpen: (open) => set({ legendOpen: open }),
-
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-
+  openDetail: (targetId, roundId = null) => set({ detail: { targetId, roundId } }), closeDetail: () => set({ detail: null }),
+  setRunPanel: (open) => set({ runPanelOpen: open }), setLegendOpen: (open) => set({ legendOpen: open }),
+  setExclusionDrawerOpen: (open) => set({ exclusionDrawerOpen: open }),
+  closeInspectionConfirmation: () => { if (!get().starting) set({ inspectionConfirmation: null, inspectionConfirmError: '' }) },
+  closeSettingsConfirmation: () => { if (!get().settingsSaving) set({ pendingSettingsConfirmation: null, settingsConfirmError: '' }) },
+  dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   notify: (toast) => {
-    toastSeq += 1
-    const id = `toast-${toastSeq}`
-    set((s) => ({ toasts: [...s.toasts, { ...toast, id }].slice(-4) }))
-    window.setTimeout(() => {
-      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
-    }, 5200)
+    const id = `toast-${++toastSeq}`
+    set((state) => ({ toasts: [...state.toasts, { ...toast, id }].slice(-4) }))
+    globalThis.setTimeout(() => set((state) => ({ toasts: state.toasts.filter((item) => item.id !== id) })), 5200)
   },
-
-  resetDemo: () => {
-    const settings = get().settings
-    set({
-      ...freshData(),
-      tasks: [],
-      selected: [],
-      detail: null,
-      filters: { search: '', verdict: 'all', sort: 'recent' },
-      settings: { ...settings, schedule: { ...settings.schedule, nextRunAt: null } },
-      source: 'simulated',
-      sourceDetail: '本地模拟数据：不会调用 CLIProxyAPI，也不会改动真实凭证文件。',
-    })
-    get().notify({ tone: 'info', title: '演示数据已重置', detail: '凭证、检测历史与分组状态已恢复到初始模拟状态。' })
-  },
-
-  releaseCredential: (credentialId) =>
-    set((s) => ({
-      credentials: s.credentials.map((c) =>
-        c.id === credentialId ? { ...c, availability: 'idle', busySessions: 0 } : c,
-      ),
-    })),
-
-  markBusy: (credentialId, sessions = 1) =>
-    set((s) => ({
-      credentials: s.credentials.map((c) =>
-        c.id === credentialId ? { ...c, availability: 'busy', busySessions: sessions } : c,
-      ),
-    })),
 }))
 
-/* -------------------------------------------------------------- selectors */
-
-export const selectCredential = (state: AppState, id: string): Credential | undefined =>
-  state.credentials.find((c) => c.id === id)
-
-export const selectTarget = (state: AppState, id: string): Target | undefined =>
-  state.targets.find((t) => t.id === id)
-
-
-
-
-
+export const selectCredential = (state: AppState, id: string) => state.credentials.find((credential) => credential.id === id)
+export const selectTarget = (state: AppState, id: string) => state.targets.find((target) => target.id === id)

@@ -1,78 +1,51 @@
-import type { Settings } from '../types'
-import {
-  ENDPOINTS,
-  readStoredManagementKey,
-  type Backend,
-  type Snapshot,
-  type StartChecksRequest,
-  type StartChecksResponse,
-  type SyncRequest,
-  type SyncResponse,
-} from './contract'
+import type { InspectionTask, Settings } from '../types'
+import { ENDPOINTS, type Backend, type Snapshot, type StartChecksRequest, type StartChecksResponse, type SyncRequest, type SyncResponse, type RoutingRequest, type ExclusionRequest } from './contract'
+import { currentManagementKey } from './auth'
 
-/**
- * HTTP backend for the real plugin.
- *
- * Enabled by the host page, which injects:
- *   window.__CPA_DOWNSHIFT__ = { apiBase: 'http://127.0.0.1:8317' }
- * or by serving the page from the same origin (then `apiBase` is empty).
- *
- * Reads the management key the panel already stores, or `managementKey` from the injected
- * config. Requests use `Authorization: Bearer <key>`, matching the documented boundary for
- * plugin management routes.
- */
 declare global {
-  interface Window {
-    __CPA_DOWNSHIFT__?: { apiBase?: string; managementKey?: string }
-  }
+  interface Window { __CPA_DOWNSHIFT__?: { apiBase?: string; managementKey?: string } }
 }
-
-function headers(apiBase: string): HeadersInit {
-  const key = window.__CPA_DOWNSHIFT__?.managementKey ?? readStoredManagementKey()
-  if (!key) {
-    throw new Error('缺少管理密钥：请在同一来源的管理面板中打开本页，或在配置中提供 managementKey')
-  }
-  const base: Record<string, string> = { 'Content-Type': 'application/json' }
-  // Same-origin requests do not need the absolute URL, but keep the header explicit.
-  void apiBase
-  return { ...base, Authorization: `Bearer ${key}` }
+export class APIError extends Error {
+  constructor(message: string, readonly status: number) { super(message) }
 }
 
 export function createPluginBackend(): Backend {
-  const apiBase = window.__CPA_DOWNSHIFT__?.apiBase ?? ''
-
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: { ...headers(apiBase), ...(init?.headers ?? {}) },
-    })
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      throw new Error(
-        `插件接口 ${path} 返回 ${response.status}${detail ? `：${detail.slice(0, 200)}` : ''}`,
-      )
-    }
-    return (await response.json()) as T
-  }
-
-  return {
-    kind: 'plugin',
-    loadSnapshot: () => request<Snapshot>(ENDPOINTS.snapshot),
-    startChecks: (body: StartChecksRequest) =>
-      request<StartChecksResponse>(ENDPOINTS.checks, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    cancelTask: async (taskId: string) => {
-      await request<{ ok: true }>(ENDPOINTS.cancelTask(taskId), { method: 'POST' })
-    },
-    sync: (body: SyncRequest) =>
-      request<SyncResponse>(ENDPOINTS.sync, { method: 'POST', body: JSON.stringify(body) }),
-    saveSettings: async (settings: Settings) => {
-      await request<{ ok: true }>(ENDPOINTS.settings, {
-        method: 'PUT',
-        body: JSON.stringify(settings),
+    const key = currentManagementKey()
+    if (!key) throw new APIError('请输入管理员密钥后登录插件。', 401)
+    const controller = new AbortController()
+    const timeout = globalThis.setTimeout(() => controller.abort(), 15_000)
+    try {
+      const response = await fetch(path, {
+        ...init, signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...init?.headers },
       })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string; message?: string } | null
+        const message = response.status === 401 || response.status === 403
+          ? '管理密钥无效或已失效，请重新输入。'
+          : body?.error ?? body?.message ?? `CPA 插件接口返回 ${response.status}`
+        throw new APIError(message, response.status)
+      }
+      if (response.status === 204) return undefined as T
+      return await response.json() as T
+    } catch (error) {
+      if (controller.signal.aborted) throw new APIError('CPA 插件接口连接超时，请检查服务状态。', 0)
+      throw error
+    } finally { globalThis.clearTimeout(timeout) }
+  }
+  return {
+    kind: 'plugin', loadSnapshot: () => request<Snapshot>(ENDPOINTS.snapshot),
+    startChecks: (body: StartChecksRequest) => request<StartChecksResponse>(ENDPOINTS.checks, { method: 'POST', body: JSON.stringify(body) }),
+    loadTask: (id: string) => request<InspectionTask>(ENDPOINTS.task(id)),
+    cancelTask: async (id: string) => { await request(ENDPOINTS.cancelTask(id), { method: 'POST' }) },
+    sync: (body: SyncRequest) => request<SyncResponse>(ENDPOINTS.sync, { method: 'POST', body: JSON.stringify(body) }),
+    saveSettings: async (body: Settings, acknowledgeScheduledConfigChanges = false) => { await request(ENDPOINTS.settings, { method: 'PUT', body: JSON.stringify({ ...body, ...(acknowledgeScheduledConfigChanges ? { acknowledgeScheduledConfigChanges: true } : {}) }) }) },
+    setExclusions: async (body: ExclusionRequest) => { await request(ENDPOINTS.exclusions, { method: 'POST', body: JSON.stringify(body) }) },
+    saveRouting: async (body: RoutingRequest) => {
+      if (body.weight !== undefined) throw new APIError('权重继承 CPA 当前配置，插件只调整优先级', 400)
+      const { credentialId, priority, reset } = body
+      await request(ENDPOINTS.routing, { method: 'PUT', body: JSON.stringify({ credentialId, priority, reset }) })
     },
   }
 }
