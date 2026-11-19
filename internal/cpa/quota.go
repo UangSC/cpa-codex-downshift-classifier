@@ -3,6 +3,7 @@ package cpa
 import (
 	"math"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -11,6 +12,13 @@ func parseQuotaSignals(signals map[string]string, observed time.Time) Quota {
 	if observed.IsZero() {
 		return q
 	}
+	// HTTP 头名不区分大小写；CPA 管理接口会保留 X-Codex-* 的规范形式。
+	// 复制后归一化，避免将真实额度误判为未知，也不修改调用方的观测数据。
+	normalized := make(map[string]string, len(signals))
+	for name, value := range signals {
+		normalized[strings.ToLower(strings.TrimSpace(name))] = strings.TrimSpace(value)
+	}
+	signals = normalized
 	for _, window := range []string{"primary", "secondary"} {
 		base := "x-codex-" + window + "-"
 		minutes, err := strconv.Atoi(signals[base+"window-minutes"])

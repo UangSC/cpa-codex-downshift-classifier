@@ -4586,6 +4586,10 @@ body {
   display: none;
 }
 /* Quota: keep rows aligned with the taller two-line meter. */
+.pool-card .quota-cell[data-quota-empty='true'] .quota-warn {
+  display: block;
+}
+
 .cred-quota-cell {
   min-height: 44px;
   justify-content: center;

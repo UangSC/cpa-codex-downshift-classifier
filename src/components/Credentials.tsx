@@ -124,7 +124,7 @@ function QuotaCell({ view, settings }: { view: CredentialView; settings: Setting
   const exhausted = view.credential.quota.status === 'exhausted'
   const blocked = lowest != null && lowest <= settings.quota.minRemainingPercent
   return (
-    <div className="quota-cell">
+    <div className="quota-cell" data-quota-empty={view.credential.quota.windows.length === 0 ? 'true' : undefined}>
       <QuotaMeter windows={view.credential.quota.windows} threshold={settings.quota.minRemainingPercent} />
       {exhausted ? (
         <span className="quota-warn">额度不足 · 跳过</span>
