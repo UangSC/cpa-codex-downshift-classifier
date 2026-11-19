@@ -20,11 +20,11 @@ export function PlanBadge({ plan, size = 'md' }: { plan: string; size?: 'sm' | '
   const key = normalized === 'pro' ? '100pro' : tier && family ? `${tier}${family}` : normalized
   const src = BADGES[key]
   return src ? (
-    <span className={`gpt-badge is-${size}`} data-tier={tier} data-plan={key} title={`套餐：${plan}`}>
+    <span className={`gpt-badge is-${size}`} data-tier={tier} data-plan={key}>
       <img src={src} width="96" height="26" alt={key.toUpperCase().replace(/(\d+)(PRO|TEAM)/, '$1 $2')} />
     </span>
   ) : (
-    <span className={`gpt-badge-fallback is-${size}`} title={`套餐：${plan}`}>{plan.trim().toUpperCase() || '未知'}</span>
+    <span className={`gpt-badge-fallback is-${size}`}>{plan.trim().toUpperCase() || '未知'}</span>
   )
 }
 

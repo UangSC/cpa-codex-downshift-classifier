@@ -116,7 +116,7 @@ export function PrefixEditor() {
         <div className="field-label">注册后的模型名 <span className="field-optional">最多两个示例</span></div>
         <div className="prefix-preview">
           <div className="preview-row">
-            <span className="from" title={`检测模型 ${settings.inspectionModel}`}>
+            <span className="from" aria-label={`检测模型 ${settings.inspectionModel}`}>
               {settings.inspectionModel}
               <span className="preview-tag">检测模型</span>
             </span>
@@ -139,7 +139,7 @@ export function PrefixEditor() {
             .slice(0, 1)
             .map((model) => (
               <div className="preview-row" key={model}>
-                <span className="from" title={model}>
+                <span className="from" aria-label={model}>
                   {model}
                   <span className="preview-tag">同凭证</span>
                 </span>

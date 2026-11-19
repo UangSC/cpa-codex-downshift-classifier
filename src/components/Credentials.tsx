@@ -3,8 +3,6 @@ import type { Settings } from '../types'
 import { formatRelative } from '../lib/format'
 import { lastRound, lowestQuota, type CredentialView } from '../lib/derive'
 import { Chip, HoverCard, Icon, PlanBadge, PlanMark, QuotaMeter, SecretName, useSelection } from './ui'
-import { routingFor } from '../lib/routing'
-import { routedModelName } from '../lib/derive'
 import { CredentialRouting } from './RoutingControls'
 import { StatusLights } from './StatusLights'
 import { useStore } from '../store/store'
@@ -80,7 +78,7 @@ function stop(e: { stopPropagation: () => void }) {
 /** The single four-state status chip used by cards (and the list verdict column). */
 function StatusPill({ view, size }: { view: CredentialView; size?: 'sm' }) {
   const key = statusOf(view)
-  const detail = view.attention.find((a) => a.kind === 'sync' || a.kind === 'auth' || a.kind === 'availability')?.detail ?? view.reason ?? '尚未取得完整检测结果，请执行复测后查看依据。'
+  const detail = view.attention.find((a) => a.kind === 'sync' || a.kind === 'auth' || a.kind === 'availability')?.detail ?? view.reason ?? '尚未取得完整检测结果，请执行测试后查看详情。'
   const interactive = key === 'unknown' || key === 'error'
   const Tag = interactive ? 'button' : 'span'
   const pill = (
@@ -100,22 +98,11 @@ function GroupCell({ view, settings }: { view: CredentialView; settings: Setting
   const label = credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'
   const prefixKnown = typeof credential.prefix === 'string'
   const prefix = prefixKnown ? credential.prefix!.trim().replace(/\/+$/g, '') : credential.group ? settings.prefixes[credential.group] : null
-  const values = routingFor(credential, settings.routing)
-  const sync = view.attention.find((item) => item.kind === 'sync')
-  const tooltip = <>
-    <div className="tip-title">{label}组 · {settings.routing.mode === 'prefix' ? '模型前缀' : '仅优先级'}</div>
-    <div className="tip-row"><span className="tip-k">配置</span><span className="tip-v">
-      {settings.routing.mode === 'priority'
-        ? `优先级 ${values.priority}，继承权重 ${credential.routing?.weight ?? '未知'}；当前模型名例如 ${routedModelName(credential, settings.inspectionModel, settings)}。`
-        : `${credential.models.length} 个模型当前使用此凭证的生效前缀，例如 ${routedModelName(credential, settings.inspectionModel, settings)}。`}
-    </span></div>
-    {sync && <div className="tip-row"><span className="tip-k">同步</span><span className="tip-v">{sync.detail}</span></div>}
-  </>
   return <div className="group-cell is-list"><div className="group-line">
     <span className={`group-dot is-${credential.group ?? 'none'}`} aria-hidden="true" />
-    <HoverCard content={tooltip}><span className={`group-prefix is-${credential.group ?? 'none'}`}>
+    <span className={`group-prefix is-${credential.group ?? 'none'}`}>
       {prefixKnown ? prefix || '无前缀' : settings.routing.mode === 'priority' ? label : credential.group ? prefix || '无前缀' : '未分组'}
-    </span></HoverCard>
+    </span>
   </div></div>
 }
 
@@ -161,49 +148,41 @@ function Actions({
   const expired = view.credential.auth === 'expired'
   const excluding = useStore((state) => state.excluding.includes(view.credential.id))
   const exclusionBusy = !!runtime.exclusionBusyCredentialIds?.includes(view.credential.id)
+  const actionHint = (label: string, button: React.ReactNode) => compact
+    ? <HoverCard compact placement="top" content={label}>{button}</HoverCard>
+    : button
   return (
     <div className={`cred-actions ${compact ? 'is-compact' : ''}`} onClick={stop}>
-      <HoverCard
-        placement="top"
-        content={
-          expired
-            ? '凭证认证失效，需重新登录后再检测'
-            : view.credential.unavailable ? 'CPA 当前报告此凭证暂不可用或处于冷却'
-            : busy
-              ? '正在检测，请稍候'
-              : `用 ${runtime.settings.inspectionModel} 检测该凭证，结论作用于它的全部模型`
-        }
-      >
+      {actionHint('测试',
         <button
           type="button"
           className="btn btn-sm btn-retest"
-          aria-label={`复测 ${view.credential.name}`}
+          aria-label={`测试 ${view.credential.name}`}
+          aria-busy={busy}
           disabled={runtime.canInspect === false || busy || excluding || expired || view.credential.unavailable}
           onClick={() => runtime.onRetest(view.credential.id)}
-          title={view.attention.some((a) => a.kind === 'sync') ? '复测会重新检测，并按所选策略应用分组配置' : undefined}
         >
           <Icon.Refresh />
-          <span>{busy ? '检测中' : '复测'}</span>
+          <span>测试</span>
         </button>
-      </HoverCard>
-      {view.target && (
+      )}
+      {view.target && actionHint('详情',
         <button
           type="button"
           className="btn btn-sm btn-detail"
-          aria-label={`查看 ${view.credential.name} 的检测依据`}
+          aria-label={`详情 ${view.credential.name}`}
           onClick={() => runtime.onOpenDetail(view.target!.id, lastRound(view.target)?.id ?? null)}
-          title="查看本轮的题目、回答、指纹比对与分组写入"
         >
           <Icon.Doc />
-          <span>依据</span>
+          <span>详情</span>
         </button>
       )}
-      {runtime.onExclude && <HoverCard content={exclusionBusy ? '该凭证仍在巡检任务中，请先停止任务或等待完成。' : '移入不参与巡检池。原分类、历史与 CPA 配置不变，仍可用于正常请求。'}>
+      {runtime.onExclude && actionHint('排除',
         <button type="button" className="btn btn-sm btn-exclude" disabled={excluding || exclusionBusy || runtime.canChangeParticipation === false}
-          aria-label={`将 ${view.credential.name} 移入不参与巡检`} onClick={() => runtime.onExclude?.(view.credential.id)}>
-          <ExclusionIcon /><span>{excluding ? '移入中' : '不参与'}</span>
+          aria-label={`排除 ${view.credential.name}`} aria-busy={excluding} onClick={() => runtime.onExclude?.(view.credential.id)}>
+          <ExclusionIcon /><span>排除</span>
         </button>
-      </HoverCard>}
+      )}
     </div>
   )
 }
@@ -316,7 +295,6 @@ function SelectableCard({
   className,
   children,
   testId,
-  title,
   credentialId,
   identity,
 }: {
@@ -325,7 +303,6 @@ function SelectableCard({
   className: string
   children: React.ReactNode
   testId?: string
-  title?: string
   credentialId?: string
   identity?: ReturnType<typeof cardIdentityAttributes>
 }) {
@@ -338,11 +315,10 @@ function SelectableCard({
       data-testid={testId}
       data-credential-id={credentialId}
       data-exclusion-source={credentialId ? 'true' : undefined}
-      title={title}
       className={`${className} ${selected ? 'is-selected' : ''}`}
       onClick={onToggle}
       onKeyDown={(e) => {
-        // Ignore keys aimed at the inner buttons (复测 / 依据 / 待同步), otherwise Enter
+        // Ignore keys aimed at the inner buttons (测试 / 详情 / 待同步), otherwise Enter
         // would also toggle the card selection while activating them.
         if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
@@ -363,7 +339,7 @@ function cardNote(view: CredentialView): string {
   if (auth) return '认证失效，需要重新登录后再检测'
   const quota = view.attention.find((a) => a.kind === 'quota')
   if (quota) return '额度不足或正在排队，暂不检测'
-  return '尚未检测，点击「复测」开始'
+  return '尚未检测，点击「测试」开始'
 }
 
 export function CredentialGrid({ views, runtime }: { views: CredentialView[]; runtime: CredentialRuntime }) {
@@ -391,7 +367,6 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
             onToggle={() => selection.toggle(view.credential.id)}
             className={`cred-tile tone-${view.verdict}`}
             testId={`cred-${view.credential.id}`}
-            title={cardNote(view)}
           >
             <div className="tile-head">
               <PlanMark plan={view.credential.plan} />
@@ -399,11 +374,9 @@ export function CredentialGrid({ views, runtime }: { views: CredentialView[]; ru
                 <div className="tile-name-line">
                   <SecretName name={view.credential.name} className="tile-name" />
                   {busy && (
-                    <HoverCard content={`正在检测该凭证，结论会作用于它的全部模型`}>
                       <Chip tone="uncertain" dot>
                         检测中
                       </Chip>
-                    </HoverCard>
                   )}
                 </div>
                 <div className="tile-sub">
@@ -483,7 +456,6 @@ function PoolCard({ view, runtime }: { view: CredentialView; runtime: Credential
       onToggle={() => selection.toggle(view.credential.id)}
       className={`pool-card tone-${view.verdict}`}
       testId={`cred-${view.credential.id}`}
-      title={cardNote(view)}
     >
       <div className="pool-card-top">
         <SecretName name={view.credential.name} className="pool-name" />

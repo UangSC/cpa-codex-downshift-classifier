@@ -129,7 +129,7 @@ export function ExclusionDrawer() {
       </div>
       <div className="exclusion-drawer-cards">
         {filtered.length ? filtered.map((view) => <ExcludedCredential key={view.credential.id} view={view} selected={chosen.includes(view.credential.id)} onSelect={() => toggle(view.credential.id)} disabled={disabledFor(view.credential)} now={now} />)
-          : <div className="exclusion-drawer-empty"><span className="exclusion-empty-symbol"><ExclusionIcon /></span><h4>{search ? '没有匹配的凭证' : '暂无不参与巡检的凭证'}</h4><p>{search ? '更换搜索词，或清空搜索查看全部凭证。' : '在凭证卡片或批量操作中点击“不参与”，即可移入这里。'}</p></div>}
+          : <div className="exclusion-drawer-empty"><span className="exclusion-empty-symbol"><ExclusionIcon /></span><h4>{search ? '没有匹配的凭证' : '暂无不参与巡检的凭证'}</h4><p>{search ? '更换搜索词，或清空搜索查看全部凭证。' : '在凭证卡片或批量操作中点击“排除”，即可移入这里。'}</p></div>}
       </div>
       <div className="exclusion-drawer-footer">
         <div><strong>{chosen.length ? `已选择 ${chosen.length} 个` : '恢复后回到原分类'}</strong><span>恢复参与不会自动开始巡检。</span></div>

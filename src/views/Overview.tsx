@@ -22,9 +22,9 @@ const FILTER_LABEL: Record<VerdictFilter, string> = {
 }
 
 const LAYOUTS = [
-  { value: 'list', label: '列表', title: '紧凑列表：一屏看更多凭证' },
-  { value: 'card', label: '卡片', title: '卡片视图：点击卡片选择' },
-  { value: 'pool', label: '三栏', title: '按结论分成正常 / 不确定 / 降档三栏' },
+  { value: 'list', label: '列表' },
+  { value: 'card', label: '卡片' },
+  { value: 'pool', label: '三栏' },
 ] as const
 
 function InspectionConcurrency({ value, disabled }: { value: number; disabled: boolean }) {
@@ -223,7 +223,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <button type="button" className={`btn quota-refresh-button${state.quotaRefreshing.length ? ' is-refreshing' : ''}`}
             disabled={state.connection !== 'connected' || Boolean(state.quotaRefreshing.length) || !visibleQuotaIds.length}
             aria-busy={Boolean(state.quotaRefreshing.length)}
-            title={`刷新当前页 ${visibleQuotaIds.length} 个凭证额度，同时最多请求 2 个`}
             onClick={() => void refreshCredentialsQuota(visibleQuotaIds)}>
             <Icon.Refresh />{state.quotaRefreshing.length ? '正在刷新额度…' : '刷新额度状态'}
           </button>
@@ -232,13 +231,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
             className="btn btn-primary"
             disabled={state.connection !== 'connected' || state.starting || state.settingsSaving || Boolean(state.settingsDraft) || state.excluding.length > 0 || Boolean(runningTask) || eligible.length === 0}
             onClick={() => startInspection('batch')}
-            title={
-              runningTask
-                ? '已有巡检正在进行'
-                : eligible.length === 0
-                  ? '当前没有满足条件的凭证'
-                  : `检测 ${eligible.length} 个凭证`
-            }
           >
             <Icon.Play />
             巡检全部符合条件
@@ -267,7 +259,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
             type="button"
             className={`stat ${item.value === 0 ? 'is-empty' : ''}`}
             aria-pressed={filters.verdict === item.key}
-            title={filters.verdict === item.key ? '取消筛选' : `只查看${item.label}的凭证`}
             onClick={() => state.setFilters({ verdict: filters.verdict === item.key ? 'all' : item.key })}
           >
             <span className="stat-top">
@@ -312,7 +303,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <button type="button" aria-pressed={settings.inspectionMethod === 'candy'} disabled={optionsDisabled}
             onClick={() => void saveInspectionOptions({ inspectionMethod: 'candy' })}>糖果</button>
           <button type="button" aria-pressed={settings.inspectionMethod === 'fingerprint'} disabled={optionsDisabled || !state.capabilities.fingerprintAvailable}
-            title={state.capabilities.fingerprintAvailable ? '使用三道数字挑战检测模型指纹' : '后端尚未提供模型指纹参考库'}
             onClick={() => void saveInspectionOptions({ inspectionMethod: 'fingerprint' })}>指纹</button>
         </div>
         <InspectionConcurrency value={settings.concurrency.maxObjects} disabled={optionsDisabled} />
@@ -325,7 +315,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
             value={filters.search}
             onChange={(e) => state.setFilters({ search: e.target.value })}
             aria-label="搜索凭证或模型"
-            title="按 / 快速聚焦搜索"
           />
         </div>
         {filters.verdict !== 'all' && (
@@ -355,11 +344,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           aria-pressed={settings.maskNames}
           onClick={() => state.updateSettings({ maskNames: !settings.maskNames })}
           aria-label={settings.maskNames ? '取消隐藏账号名称' : '隐藏账号名称（模糊）'}
-          title={
-            settings.maskNames
-              ? '当前已模糊账号名称，点击显示完整名称'
-              : '模糊账号名称，方便截图或共享屏幕'
-          }
         >
           {settings.maskNames ? <Icon.EyeOff /> : <Icon.Eye />}
         </button>
@@ -369,7 +353,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
               key={item.value}
               type="button"
               aria-pressed={settings.layout === item.value}
-              title={item.title}
               onClick={() => state.updateSettings({ layout: item.value })}
             >
               {item.label}

@@ -21,7 +21,7 @@ export function SecretName({
     }
   }
   return (
-    <span className={`secret-name ${className ?? ''}`} role="button" tabIndex={0} aria-label={masked ? '复制账号名称' : `复制 ${name}`} title="点击复制完整账号名称"
+    <span className={`secret-name ${className ?? ''}`} role="button" tabIndex={0} aria-label={masked ? '复制账号名称' : `复制 ${name}`}
       onClick={(event) => { event.stopPropagation(); event.preventDefault(); void copy() }}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); void copy() } }}>
       {name}

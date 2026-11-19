@@ -27,8 +27,8 @@ export function RequestAttempts({ attempts }: { attempts: RequestAttempt[] }) {
           <td>#{attempt.index}</td>
           <td><span className={`badge-code ${attempt.status === 200 ? 'is-ok' : typeof attempt.status === 'number' ? 'is-err' : ''}`}>{attempt.status}</span></td>
           <td className="mono" style={{ fontSize: 10.5, whiteSpace: 'nowrap' }}>
-            <div>开始 <time dateTime={attempt.at} title={formatDateTimePrecise(attempt.at)}>{formatClockPrecise(attempt.at)}</time></div>
-            <div>结束 {attempt.finishedAt ? <time dateTime={attempt.finishedAt} title={formatDateTimePrecise(attempt.finishedAt)}>{formatClockPrecise(attempt.finishedAt)}</time> : '—'}</div>
+            <div>开始 <time dateTime={attempt.at} aria-label={formatDateTimePrecise(attempt.at)}>{formatClockPrecise(attempt.at)}</time></div>
+            <div>结束 {attempt.finishedAt ? <time dateTime={attempt.finishedAt} aria-label={formatDateTimePrecise(attempt.finishedAt)}>{formatClockPrecise(attempt.finishedAt)}</time> : '—'}</div>
             <div>耗时 {formatDuration(attempt.durationMs)}</div>
           </td>
           <td>{attempt.waitMs ? formatSeconds(attempt.waitMs) : '—'}</td>

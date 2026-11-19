@@ -1868,6 +1868,15 @@ button {
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
+.tip.is-compact {
+  max-width: 6em;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 .tip .tip-title {
   display: flex;
   align-items: center;

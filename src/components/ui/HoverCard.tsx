@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { suppressSelectionReleaseClick } from '../../lib/tooltipInteraction'
+import { MIN_TOOLTIP_DELAY_MS, scheduleTooltipOpening, suppressSelectionReleaseClick } from '../../lib/tooltipInteraction'
 
 /**
  * Small hover/focus card rendered in a portal so card `overflow: hidden` never clips it.
- * Both pointer hover and keyboard focus open it, satisfying the status-light requirement.
+ * 鼠标悬浮和键盘焦点均等待至少三秒；主动点击固定气泡仍会立即打开。
  */
 /** A pinned tip lingers this long after the pointer leaves, then fades out. */
 const PIN_LINGER_MS = 1000
@@ -16,6 +16,8 @@ export function HoverCard({
   placement = 'top',
   pinOnClick = false,
   hideDelay = 0,
+  showDelay = MIN_TOOLTIP_DELAY_MS,
+  compact = false,
 }: {
   content: ReactNode
   children: ReactNode
@@ -23,6 +25,10 @@ export function HoverCard({
   /** Clicking the anchor pins the tip; after leaving it lingers, then fades out. */
   pinOnClick?: boolean
   hideDelay?: number
+  /** 等待至少三秒再出现；调用方只可增加等待时间。 */
+  showDelay?: number
+  /** 使用相同主题的两字小气泡，不携带额外操作说明。 */
+  compact?: boolean
 }) {
   const [visible, setVisible] = useState(false)
   const [fading, setFading] = useState(false)
@@ -35,7 +41,7 @@ export function HoverCard({
   const selectionDrag = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
   const selectionCleanup = useRef<(() => void) | null>(null)
   const releaseClickCleanup = useRef<(() => void) | null>(null)
-  const showTimer = useRef<number | null>(null)
+  const showCleanup = useRef<(() => void) | null>(null)
   const hideTimer = useRef<number | null>(null)
   const fadeTimer = useRef<number | null>(null)
   const pinnedRef = useRef(false)
@@ -47,7 +53,9 @@ export function HoverCard({
   }, [])
 
   const clearTimers = useCallback(() => {
-    for (const ref of [showTimer, hideTimer, fadeTimer]) {
+    showCleanup.current?.()
+    showCleanup.current = null
+    for (const ref of [hideTimer, fadeTimer]) {
       if (ref.current !== null) {
         window.clearTimeout(ref.current)
         ref.current = null
@@ -67,14 +75,20 @@ export function HoverCard({
   /** Entering again during the linger or the fade cancels the pending close. */
   const show = useCallback(() => {
     clearTimers()
-    showTimer.current = window.setTimeout(
-      () => {
-        showTimer.current = null
-        openNow()
-      },
-      visible ? 0 : 90,
-    )
-  }, [clearTimers, openNow, visible])
+    if (visible && pinnedRef.current) {
+      openNow()
+      return
+    }
+    // 未固定的气泡在重新进入时重新计时，不沿用上一段短暂悬浮。
+    if (visible) {
+      setVisible(false)
+      setFading(false)
+    }
+    showCleanup.current = scheduleTooltipOpening(() => {
+      showCleanup.current = null
+      openNow()
+    }, showDelay)
+  }, [clearTimers, openNow, showDelay, visible])
 
   /**
    * Leaving schedules the close. A pinned tip waits `PIN_LINGER_MS` first, so moving back
@@ -200,7 +214,7 @@ export function HoverCard({
         createPortal(
           <div
             ref={tip}
-            className={`tip ${fading ? 'is-fading' : ''} ${pinned ? 'is-pinned' : ''} ${selecting ? 'is-selecting-text' : ''} ${
+            className={`tip ${compact ? 'is-compact' : ''} ${fading ? 'is-fading' : ''} ${pinned ? 'is-pinned' : ''} ${selecting ? 'is-selecting-text' : ''} ${
               pinOnClick ? 'has-hint' : ''
             }`}
             role="tooltip"

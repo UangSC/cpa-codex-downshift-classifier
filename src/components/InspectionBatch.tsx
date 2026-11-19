@@ -17,7 +17,7 @@ export function InspectionBatch({ batchId, startedAt, open, onToggle, metadata, 
       <button type="button" className="inspection-batch-toggle" aria-expanded={open} aria-controls={contentId} onClick={onToggle}>
         <span className="inspection-batch-chevron" aria-hidden="true"><Icon.Chevron dir={open ? 'down' : 'right'} /></span>
         <span className="inspection-batch-heading">
-          <time className="inspection-batch-time mono" dateTime={startedAt} title={startedAt}>{formatBatchStartedAt(startedAt)}</time>
+          <time className="inspection-batch-time mono" dateTime={startedAt}>{formatBatchStartedAt(startedAt)}</time>
           <span className="inspection-batch-metadata">{metadata}<span className="inspection-batch-timezone">上海时间</span></span>
         </span>
         <span className="inspection-batch-hint">{open ? '收起' : '展开'}</span>

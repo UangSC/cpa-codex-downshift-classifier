@@ -54,7 +54,7 @@ export function RunPanel() {
     head={running ? <button type="button" className="btn btn-sm btn-danger" disabled={!connected} onClick={() => cancelTask(running.id)}><Icon.Stop />停止</button> : undefined}>
     {runningBatch ? renderBatch(runningBatch) : <div className="empty" style={{ padding: '28px 16px', marginBottom: 12 }}>
       <div className="empty-icon"><Icon.History /></div><h3>当前没有进行中的巡检</h3>
-      <p>在凭证列表中选择对象后点击「复测」，或使用「巡检全部符合条件」。</p>
+      <p>在凭证列表中选择对象后点击「测试」，或使用「巡检全部符合条件」。</p>
     </div>}
     {!!recent.length && <><div className="history-day" style={{ marginTop: 4 }}>最近批次</div>{recent.map(renderBatch)}</>}
   </Drawer>

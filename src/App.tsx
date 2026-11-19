@@ -114,7 +114,6 @@ export default function App() {
                 type="button"
                 className="btn btn-sm"
                 onClick={() => setRunPanel(true)}
-                title="查看巡检任务与排队状态"
               >
                 {running ? (
                   <>
@@ -136,7 +135,6 @@ export default function App() {
 
               <span
                 className={`env-badge ${connection === 'connected' ? 'is-live' : ''}`}
-                title={connection === 'connected' ? '数据来自 CLIProxyAPI 插件接口' : 'CPA 尚未连接，当前状态未更新'}
               >
                 <i aria-hidden="true" />
                 {connection === 'connected' ? '实时数据' : '未连接'}
@@ -149,7 +147,6 @@ export default function App() {
                   updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
                 }
                 aria-label={settings.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
-                title={settings.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
               >
                 {settings.theme === 'dark' ? <Icon.Sun /> : <Icon.Moon />}
               </button>

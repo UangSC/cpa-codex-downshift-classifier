@@ -84,7 +84,7 @@ export function RoutingControls({ values, onChange, label, showLabels = false, s
       </div>
       {showWeight && <div className="routing-field">
         {showLabels && <span>权重</span>}
-        <output className="routing-inherited" aria-label={`${label}继承权重`} title="继承 CPA 当前权重，不由插件修改">
+        <output className="routing-inherited" aria-label={`${label}继承权重`}>
           <strong>{currentWeight ?? '未知'}</strong><span>继承</span>
         </output>
       </div>}
@@ -104,7 +104,7 @@ export function CredentialRouting({ credential, showLabels = false }: { credenti
         if (values.priority !== current.priority) void saveCredentialRouting({ credentialId: credential.id, priority: values.priority })
       }}>
       <button type="button" className="routing-reset" disabled={disabled || !overridden} aria-label={`恢复 ${credential.name} 的分组默认优先级`}
-        title={overridden ? '恢复分组默认优先级，权重保持继承' : '当前使用分组默认优先级，权重保持继承'} onClick={() => {
+        onClick={() => {
           void saveCredentialRouting({ credentialId: credential.id, reset: true })
         }}>↺</button>
     </RoutingControls>

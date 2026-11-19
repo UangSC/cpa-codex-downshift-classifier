@@ -13,12 +13,10 @@ export function Chip({
   tone = 'plain',
   dot = false,
   children,
-  title,
 }: {
   tone?: ChipTone
   dot?: boolean
   children: ReactNode
-  title?: string
 }) {
   const cls =
     tone === 'normal'
@@ -31,7 +29,7 @@ export function Chip({
             ? 'chip-accent'
             : ''
   return (
-    <span className={`chip ${cls} ${dot ? 'chip-dot' : ''}`} title={title}>
+    <span className={`chip ${cls} ${dot ? 'chip-dot' : ''}`}>
       {children}
     </span>
   )

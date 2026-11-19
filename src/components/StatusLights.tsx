@@ -118,7 +118,7 @@ export function StatusLights({
               <div className="tip-row">
                 <span className="tip-k">说明</span>
                 <span className="tip-v">
-                  该凭证还没有执行过检测。点「复测」执行一轮，结果会按时间顺序显示在这里。
+                  该凭证还没有执行过检测。点「测试」执行一轮，结果会按时间顺序显示在这里。
                 </span>
               </div>
             </>
@@ -128,7 +128,6 @@ export function StatusLights({
             type="button"
             className="light light-empty is-placeholder"
             aria-label="暂无检测记录，悬停查看说明"
-            title="暂无检测记录"
           />
         </HoverCard>
       </div>
@@ -161,7 +160,6 @@ export function StatusLights({
               aria-label={`${formatRelative(round.finishedAt)}，${OUTCOME_LABEL[round.outcome]}，${
                 REASON_LABEL[round.reasonCode]
               }`}
-              title={problem ? '点击固定问题气泡' : undefined}
             />
           </HoverCard>
         )
