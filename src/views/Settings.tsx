@@ -173,6 +173,12 @@ export function SettingsView() {
             <div className="field-hint">
               {getInspectionMethod(settings.inspectionMethod).description} 所有题目共用本轮重试次数。
             </div>
+            {settings.inspectionMethod === 'fingerprint' && (
+              <div className="rule-box">
+                每个凭证完成三次有效数字挑战后，合并计算模型指纹概率。只有目标参考匹配且归因概率严格大于 90% 才算正常；等于 90% 也不通过。
+                未收录模型或不足三份有效结果时保持不确定。默认检测方式仍为糖果题。
+              </div>
+            )}
           </div>
 
           <div className="field">

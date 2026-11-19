@@ -119,114 +119,8 @@ func (s *Service) inspect(ctx context.Context, cancel context.CancelFunc, task T
 		return
 	}
 	s.patchItem(task.ID, tid, func(i *RunItem) { i.State = "running"; i.StartedAt = &start; i.CurrentTest = &q.Method; i.Note = nil })
-	round := Round{ID: identifier("round"), TargetID: tid, StartedAt: start, Scope: q.Scope, Tests: []string{q.Method}, Outcome: "uncertain", ReasonCode: "no-model-response", Reason: "未取得有效回答", ReasoningEffort: v.ReasoningEffort, Evidence: Evidence{Tests: []string{q.Method}, Attempts: []Attempt{}, Errors: []EvidenceError{}, Usage: &Usage{}}}
-	var codes []int
-	for attempt := 0; attempt <= v.Retry.MaxRetries; attempt++ {
-		if s.inspectionExcluded(c.ID) {
-			skip("该凭证不参与巡检，已停止后续检测请求")
-			return
-		}
-		delay := 0
-		if attempt > 0 {
-			delay = int(float64(v.Retry.BaseDelayMs) * math.Pow(v.Retry.BackoffFactor, float64(attempt-1)))
-			s.patchItem(task.ID, tid, func(i *RunItem) {
-				i.State = "retrying"
-				i.Note = str(fmt.Sprintf("本轮第 %d/%d 次重试，等待 %.1f 秒", attempt, v.Retry.MaxRetries, float64(delay)/1000))
-			})
-			if wait(ctx, time.Duration(delay)*time.Millisecond) != nil {
-				break
-			}
-		}
-		if ctx.Err() != nil {
-			break
-		}
-		if s.inspectionExcluded(c.ID) {
-			skip("该凭证不参与巡检，已停止后续检测请求")
-			return
-		}
-		s.patchItem(task.ID, tid, func(i *RunItem) { i.State = "running"; i.Attempt = attempt + 1 })
-		at := stamp()
-		requestStart := time.Now()
-		reply, err := s.adapter.Probe(ctx, c.ID, q.Model, CandyQuestion, v.ReasoningEffort, v.HeaderOverrides)
-		if ctx.Err() != nil {
-			break
-		}
-		status := any(reply.Status)
-		valid := err == nil && reply.Status >= 200 && reply.Status < 300 && strings.TrimSpace(reply.Answer) != ""
-		if err != nil {
-			status = "network-error"
-			connectionFailures.Add(1)
-		} else {
-			connectionFailures.Store(0)
-		}
-		duration := reply.DurationMs
-		if duration == 0 {
-			duration = time.Since(requestStart).Milliseconds()
-		}
-		round.Evidence.Attempts = append(round.Evidence.Attempts, Attempt{attempt + 1, status, at, delay, duration, q.Method, 1, attempt, valid})
-		round.Evidence.Usage.InputTokens += reply.InputTokens
-		round.Evidence.Usage.OutputTokens += reply.OutputTokens
-		if err != nil || reply.Status < 200 || reply.Status >= 300 || !valid {
-			message := reply.Error
-			if err != nil {
-				message = err.Error()
-			}
-			if message == "" {
-				message = "未返回有效模型回答"
-			}
-			if len(message) > 1000 {
-				message = message[:1000]
-			}
-			round.Evidence.Errors = append(round.Evidence.Errors, EvidenceError{at, reply.Status, message})
-		}
-		if err != nil && connectionFailures.Load() >= 3 {
-			round.Reason = "连续三次无法连接 CPA，自动停止巡检与定时计划"
-			cancel()
-			break
-		}
-		if err == nil && (reply.Status == 401 || reply.Status == 403) {
-			round.Outcome = "blocked"
-			round.ReasonCode = "auth-expired"
-			round.Reason = "凭证认证失效，未形成能力判定"
-			break
-		}
-		if err == nil && reply.Status == 429 {
-			round.Outcome = "blocked"
-			round.ReasonCode = "quota-exhausted"
-			round.Reason = "额度不足或限流，未形成能力判定"
-			break
-		}
-		if reply.Status == 502 || reply.Status == 503 {
-			codes = append(codes, reply.Status)
-		}
-		if valid {
-			answer := reply.Answer
-			if len(answer) > 32768 {
-				answer = answer[:32768]
-			}
-			matched := MatchesCandy(answer)
-			round.Evidence.Candy = &Candy{"candy-bag-21", CandyQuestion, "21", answer, matched, "接受含独立数字 21 的回答；子串和小数不计入。"}
-			if matched {
-				round.Outcome = "normal"
-				round.ReasonCode = "all-tests-passed"
-				round.Reason = "糖果题通过"
-				if attempt > 0 {
-					round.ReasonCode = "passed-after-retry"
-					round.Reason = "异常后重试恢复，糖果题完整通过"
-				}
-			} else {
-				round.Outcome = "downshift"
-				round.ReasonCode = "candy-mismatch"
-				round.Reason = "糖果题答案不符：回答未包含独立数字 21"
-			}
-			break
-		}
-		// 仅网络/服务异常、空回答重试；其他4xx立即结束且不当作降档。
-		if err == nil && reply.Status >= 400 && reply.Status < 500 {
-			round.Reason = "CPA 拒绝请求，未形成能力判定"
-			break
-		}
-	}
+	round := newInspectionRound(task, q, tid, start, v.ReasoningEffort)
+	codes := s.executeRound(ctx, cancel, task, q, c, v, connectionFailures, &round)
 	if ctx.Err() == nil && round.Outcome == "uncertain" && len(codes) > 0 {
 		s.mu.Lock()
 		previous := s.recordLocked(c.ID).Targets[q.Model].Rounds
@@ -258,6 +152,7 @@ func mustTime(v string) time.Time { t, _ := time.Parse(time.RFC3339Nano, v); ret
 func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c cpa.Credential, round Round, settings Settings) {
 	s.mutation.Lock()
 	defer s.mutation.Unlock()
+	round.TaskID, round.BatchStartedAt = task.ID, task.CreatedAt
 	if s.inspectionExcluded(c.ID) {
 		s.patchItem(task.ID, round.TargetID, func(item *RunItem) {
 			item.State = "skipped"

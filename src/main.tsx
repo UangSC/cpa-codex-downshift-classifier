@@ -16,6 +16,8 @@ import './styles/card-identity.css'
 import './styles/request-headers.css'
 import './styles/buttons.css'
 import './styles/responsive-list.css'
+import './styles/history-batches.css'
+import './styles/fingerprint-evidence.css'
 import { reconnect } from './store/live'
 import { useStore } from './store/store'
 

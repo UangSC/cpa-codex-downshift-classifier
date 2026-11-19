@@ -96,6 +96,8 @@ export interface FingerprintSample {
   numbers: number[]
   accepted: boolean
   sample: string
+  question?: string
+  instructions?: string
 }
 
 export interface FingerprintEvidence {
@@ -115,6 +117,22 @@ export interface FingerprintEvidence {
   /** The reference bank entry the requested model is enrolled under (alias), not a model claim. */
   enrolledAs: string
   samples: FingerprintSample[]
+  /** 正常门槛为严格大于此值；概率为参考库归因，不是模型身份保证。 */
+  threshold?: number
+  requestedProbability?: number | null
+  referenceMatched?: boolean
+  decision?: string
+  candidates?: {
+    model: string
+    displayName: string
+    family: string
+    familyName: string
+    probability: number | null
+    score: number
+  }[]
+  mean?: number | null
+  sequence?: { autocorrelation: number; smallStepShare: number; modelLike: boolean } | null
+  referenceBank?: { revision: string; builtAt: string; sourceCommit: string; modelCount: number; portCommit?: string; suiteRevision?: string }
 }
 
 export interface ServiceErrorEvidence {
@@ -157,6 +175,8 @@ export interface GroupSync {
 
 export interface InspectionRound {
   id: string
+  taskId?: string
+  batchStartedAt?: string
   targetId: string
   startedAt: string
   finishedAt: string
@@ -243,6 +263,7 @@ export interface InspectionTask {
   id: string
   scope: 'manual' | 'batch' | 'scheduled'
   label: string
+  method?: TestKind
   createdAt: string
   finishedAt: string | null
   status: 'running' | 'cancelled' | 'completed'

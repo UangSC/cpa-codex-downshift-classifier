@@ -8,14 +8,18 @@ import (
 	"time"
 
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
 )
 
 func validateSettings(v Settings) error {
 	if v.Routing.Mode != "prefix" && v.Routing.Mode != "priority" {
 		return bad("分组策略无效")
 	}
-	if v.InspectionMethod != "candy" {
-		return bad("模型指纹缺少可靠参考库，当前仅支持糖果题")
+	if v.InspectionMethod != "candy" && v.InspectionMethod != "fingerprint" {
+		return bad("检测方式仅支持糖果题或模型指纹")
+	}
+	if v.InspectionMethod == "fingerprint" && !fingerprint.Available() {
+		return bad("模型指纹参考库暂不可用")
 	}
 	if strings.TrimSpace(v.InspectionModel) == "" || len(v.InspectionModel) > 200 {
 		return bad("检测模型无效")

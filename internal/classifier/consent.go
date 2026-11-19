@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
 )
 
 // 配置指纹排除界面偏好、继承权重和运行时 nextRunAt，只绑定可能影响巡检写入的规则。
@@ -28,6 +29,11 @@ func fingerprintWithReasoning(settings Settings, includeSchedule, includeReasoni
 		overrides[key] = value.Priority
 	}
 	data := map[string]any{"mode": settings.Routing.Mode, "prefixes": settings.Prefixes, "groups": groups, "overrides": overrides, "method": settings.InspectionMethod, "model": settings.InspectionModel, "retry": settings.Retry, "failure": settings.FailureRule, "quota": settings.Quota, "concurrency": settings.Concurrency}
+	if settings.InspectionMethod == "fingerprint" {
+		data["fingerprintPolicy"] = fingerprint.PolicyID()
+		data["fingerprintThreshold"] = fingerprint.ConfidenceThreshold
+		data["fingerprintChallenges"] = fingerprint.ChallengeCount
+	}
 	if includeReasoning {
 		data["reasoningEffort"] = settings.ReasoningEffort
 	}

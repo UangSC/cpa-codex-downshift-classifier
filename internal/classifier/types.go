@@ -1,6 +1,9 @@
 package classifier
 
-import "github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+import (
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
+)
 
 type RoutingValues struct {
 	Priority int `json:"priority"`
@@ -147,6 +150,36 @@ type Candy struct {
 	Matched    bool   `json:"matched"`
 	FormatNote string `json:"formatNote"`
 }
+
+type FingerprintSample struct {
+	ChallengeID   string `json:"challengeId"`
+	PromptSummary string `json:"promptSummary"`
+	Question      string `json:"question"`
+	Instructions  string `json:"instructions"`
+	ExpectedCount int    `json:"expectedCount"`
+	Numbers       []int  `json:"numbers"`
+	Accepted      bool   `json:"accepted"`
+	Sample        string `json:"sample"`
+}
+
+type Fingerprint struct {
+	ChallengeCount       int                     `json:"challengeCount"`
+	ValidSamples         int                     `json:"validSamples"`
+	ClosestModel         *string                 `json:"closestModel"`
+	ClosestFamily        *string                 `json:"closestFamily"`
+	Probability          *float64                `json:"probability"`
+	RequestedProbability *float64                `json:"requestedProbability"`
+	Consistency          string                  `json:"consistency"`
+	EnrolledAs           string                  `json:"enrolledAs"`
+	Samples              []FingerprintSample     `json:"samples"`
+	Threshold            float64                 `json:"threshold"`
+	ReferenceMatched     bool                    `json:"referenceMatched"`
+	Candidates           []fingerprint.Candidate `json:"candidates"`
+	Mean                 *float64                `json:"mean"`
+	Sequence             *fingerprint.Sequence   `json:"sequence"`
+	ReferenceBank        fingerprint.BankInfo    `json:"referenceBank"`
+	Decision             string                  `json:"decision"`
+}
 type Usage struct {
 	InputTokens  int `json:"inputTokens"`
 	OutputTokens int `json:"outputTokens"`
@@ -159,6 +192,7 @@ type ServiceErrors struct {
 type Evidence struct {
 	Tests        []string        `json:"tests"`
 	Candy        *Candy          `json:"candy,omitempty"`
+	Fingerprint  *Fingerprint    `json:"fingerprint,omitempty"`
 	Attempts     []Attempt       `json:"attempts"`
 	Errors       []EvidenceError `json:"errors"`
 	Usage        *Usage          `json:"usage"`
@@ -167,6 +201,8 @@ type Evidence struct {
 }
 type Round struct {
 	ID              string   `json:"id"`
+	TaskID          string   `json:"taskId,omitempty"`
+	BatchStartedAt  string   `json:"batchStartedAt,omitempty"`
 	TargetID        string   `json:"targetId"`
 	StartedAt       string   `json:"startedAt"`
 	FinishedAt      string   `json:"finishedAt"`
@@ -192,6 +228,7 @@ type Task struct {
 	ID          string    `json:"id"`
 	Scope       string    `json:"scope"`
 	Label       string    `json:"label"`
+	Method      string    `json:"method,omitempty"`
 	CreatedAt   string    `json:"createdAt"`
 	FinishedAt  *string   `json:"finishedAt"`
 	Status      string    `json:"status"`

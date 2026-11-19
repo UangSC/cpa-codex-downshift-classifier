@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
 )
 
 func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
@@ -18,13 +19,15 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := Snapshot{Credentials: []Credential{}, Targets: []Target{}, Settings: clone(s.state.Settings), Tasks: clone(s.state.Tasks), Source: "live", SourceDetail: "来自 CPA 官方凭证与运行状态接口；未提供的额度或会话状态显示未知。模型指纹需要可靠参考库，当前未启用。定时巡检时区：Asia/Shanghai。", Capabilities: Capabilities{RoutingStrategy: strategy, WeightEditingEnabled: false}}
+	out := Snapshot{Credentials: []Credential{}, Targets: []Target{}, Settings: clone(s.state.Settings), Tasks: clone(s.state.Tasks), Source: "live", SourceDetail: "来自 CPA 官方凭证与运行状态接口；未提供的额度或会话状态显示未知。模型指纹以三次数字挑战与固定参考库计算归因，目标参考概率严格高于 90% 才判正常。定时巡检时区：Asia/Shanghai。", Capabilities: Capabilities{RoutingStrategy: strategy, WeightEditingEnabled: false, FingerprintAvailable: fingerprint.Available()}}
 	out.ConfigChangesRevision = configurationFingerprint(s.state.Settings, false)
 	out.RequestHeaderProfile = cpa.DefaultRequestHeaderProfile()
 	if s.state.ScheduleConsentRequired {
 		out.SourceDetail += " 未获配置修改授权的旧定时计划已关闭，请重新确认后启用。"
 	}
+	liveIDs := map[string]bool{}
 	for _, c := range live {
+		liveIDs[c.ID] = true
 		r := s.recordLocked(c.ID)
 		if r.Group == nil && r.Sync.DesiredGroup == nil && out.Settings.Routing.Mode == "prefix" {
 			if c.Prefix != "" && c.Prefix == out.Settings.Prefixes.Downshift {
@@ -76,6 +79,15 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 			if oldModel != model {
 				out.Targets = append(out.Targets, clone(target))
 			}
+		}
+	}
+	// 凭证已删除时仍返回持久化目标与证据，但不会补造可用凭证。
+	for id, record := range s.state.Records {
+		if liveIDs[id] || record == nil {
+			continue
+		}
+		for _, target := range record.Targets {
+			out.Targets = append(out.Targets, clone(target))
 		}
 	}
 	sort.Slice(out.Credentials, func(i, j int) bool { return out.Credentials[i].ID < out.Credentials[j].ID })

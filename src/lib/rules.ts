@@ -95,8 +95,8 @@ export const REASON_DESC: Record<ReasonCode, string> = {
   'all-tests-passed': '本轮所选测试全部通过，未出现需要重试的请求错误。',
   'passed-after-retry': '请求曾出现服务错误或无效回答，但在本轮共用的重试次数内成功；所选测试全部通过。',
   'candy-mismatch': '糖果题的正确答案应为 21，模型回答中未出现独立的 21。',
-  'fingerprint-anomaly': '本轮回答与请求模型对应的参考分布差异显著，更接近另一个参考模型。',
-  'fingerprint-insufficient': '可用回答数量不足，无法与参考库可靠比对，因此本轮不下结论。',
+  'fingerprint-anomaly': '三次有效结果未满足正常条件：目标参考不匹配，或目标归因概率未严格大于 90%。',
+  'fingerprint-insufficient': '不足三份有效数字序列，或请求模型尚未登记到参考库，因此本轮保持不确定。',
   'repeated-service-errors':
     '502 与 503 交替出现也计入同一类失败；恢复需要新一轮完整检测通过，不能只靠一次请求成功。',
   'single-service-error':

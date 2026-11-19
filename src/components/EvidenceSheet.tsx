@@ -7,6 +7,7 @@ import { countRetries, REASON_DESC, REASON_LABEL, VERDICT_LABEL, testLabel } fro
 import { Chip, Collapse, Icon, Modal, SecretName } from '../components/ui'
 import { routingFor } from '../lib/routing'
 import { methodLabel } from '../inspection'
+import { FingerprintEvidencePanel } from './FingerprintEvidencePanel'
 
 export function EvidenceSheet() {
   const state = useStore()
@@ -87,7 +88,7 @@ export function EvidenceSheet() {
           <button
             type="button"
             className="btn btn-sm btn-primary"
-            disabled={state.connection !== 'connected' || state.starting || state.tasks.some((task) => task.status === 'running') || credential?.auth === 'expired'}
+            disabled={!credential || state.connection !== 'connected' || state.starting || state.tasks.some((task) => task.status === 'running') || credential.auth === 'expired'}
             onClick={() => {
               state.closeDetail()
               startInspection('manual', [target.id])
@@ -176,72 +177,7 @@ export function EvidenceSheet() {
             </div>
           )}
 
-          {round.evidence.fingerprint && (
-            <div className="ev-section">
-              <h4>
-                模型指纹
-                <Chip
-                  tone={
-                    round.evidence.fingerprint.consistency === 'consistent'
-                      ? 'normal'
-                      : round.evidence.fingerprint.consistency === 'anomalous'
-                        ? 'downshift'
-                        : 'uncertain'
-                  }
-                >
-                  {round.evidence.fingerprint.consistency === 'consistent'
-                    ? '与请求模型一致'
-                    : round.evidence.fingerprint.consistency === 'anomalous'
-                      ? '差异显著'
-                      : '证据不足'}
-                </Chip>
-              </h4>
-              <dl className="kv">
-                <dt>数字挑战</dt>
-                <dd>
-                  随机抽取 {round.evidence.fingerprint.challengeCount} 道 · 有效{' '}
-                  {round.evidence.fingerprint.validSamples} 道
-                </dd>
-                <dt>最接近参考</dt>
-                <dd>
-                  {round.evidence.fingerprint.closestModel ?? '样本不足，无法归因'}
-                  {round.evidence.fingerprint.closestFamily
-                    ? `（家族 ${round.evidence.fingerprint.closestFamily}）`
-                    : ''}
-                </dd>
-                <dt>归因概率</dt>
-                <dd>
-                  {round.evidence.fingerprint.probability == null
-                    ? '—'
-                    : `${(round.evidence.fingerprint.probability * 100).toFixed(1)}%`}
-                </dd>
-                <dt>对照基准</dt>
-                <dd>
-                  请求模型登记为 <span className="mono">{round.evidence.fingerprint.enrolledAs}</span>
-                </dd>
-              </dl>
-              {round.evidence.fingerprint.samples.length > 0 && (
-                <Collapse
-                  title={`${round.evidence.fingerprint.samples.length} 道数字挑战与回答`}
-                  hint="默认折叠"
-                >
-                  <div className="samples">
-                    {round.evidence.fingerprint.samples.map((sample) => (
-                      <div className="sample" key={sample.challengeId}>
-                        <span>
-                          <div className="sample-prompt">{sample.promptSummary}</div>
-                          <div className="sample-text">{sample.sample || '（无回答）'}</div>
-                        </span>
-                        <Chip tone={sample.accepted ? 'normal' : 'uncertain'}>
-                          {sample.numbers.length}/{sample.expectedCount}
-                        </Chip>
-                      </div>
-                    ))}
-                  </div>
-                </Collapse>
-              )}
-            </div>
-          )}
+          {round.evidence.fingerprint && <FingerprintEvidencePanel evidence={round.evidence.fingerprint} />}
 
           {round.evidence.method && (
             <div className="ev-section">

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func (c *Client) Probe(ctx context.Context, id, model, prompt, effort string, headerOverrides map[string]string) (ProbeReply, error) {
+func (c *Client) Probe(ctx context.Context, id, model, prompt, instructions, effort string, headerOverrides map[string]string) (ProbeReply, error) {
 	overrides, validationErr := ValidateHeaderOverrides(headerOverrides)
 	if validationErr != nil {
 		return ProbeReply{Status: 400, Error: validationErr.Error()}, nil
@@ -60,7 +60,7 @@ func (c *Client) Probe(ctx context.Context, id, model, prompt, effort string, he
 		}
 		return reply, err
 	}
-	body, err := json.Marshal(map[string]any{"model": model, "input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": prompt}}}}, "instructions": "Answer the user's question precisely.", "stream": true, "store": false, "reasoning": map[string]string{"effort": effort}})
+	body, err := json.Marshal(map[string]any{"model": model, "input": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "input_text", "text": prompt}}}}, "instructions": instructions, "stream": true, "store": false, "reasoning": map[string]string{"effort": effort}})
 	if err != nil {
 		return reply, err
 	}

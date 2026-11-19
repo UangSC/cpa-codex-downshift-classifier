@@ -9,8 +9,8 @@ registerInspectionMethod({
 })
 registerInspectionMethod({
   id: 'fingerprint', label: '模型指纹',
-  description: '由服务端采集三道数字挑战并与已配置的参考库比对；没有参考库时不可启用。',
+  description: '采集三份有效数字序列后合并归因；目标参考匹配且概率严格大于 90% 才算正常。未收录模型或证据不足保持不确定。',
   challengeCount: 3,
-  validateReply: (reply) => !!reply.sample?.accepted && reply.sample.numbers.length === reply.sample.expectedCount &&
+  validateReply: (reply) => !!reply.sample?.accepted &&
     reply.sample.numbers.length > 0 && reply.sample.numbers.every(Number.isFinite),
 })

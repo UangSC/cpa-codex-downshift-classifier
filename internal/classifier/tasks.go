@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
+	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
 )
 
 type StartRequest struct {
@@ -20,8 +21,11 @@ type StartRequest struct {
 }
 
 func (s *Service) Start(ctx context.Context, q StartRequest) (string, error) {
-	if q.Method != "candy" {
-		return "", bad("当前仅支持已接入真实请求的糖果题")
+	if q.Method != "candy" && q.Method != "fingerprint" {
+		return "", bad("检测方式仅支持糖果题或模型指纹")
+	}
+	if q.Method == "fingerprint" && !fingerprint.Available() {
+		return "", bad("模型指纹参考库暂不可用")
 	}
 	q.Model = strings.TrimSpace(q.Model)
 	if q.Model == "" || len(q.Model) > 200 {
@@ -65,6 +69,9 @@ func (s *Service) Start(ctx context.Context, q StartRequest) (string, error) {
 	if q.Scope != "scheduled" && (q.ConfigChangesMode != s.state.Settings.Routing.Mode || q.ConfigChangesRevision != configurationFingerprint(s.state.Settings, false)) {
 		return "", &apiError{409, "巡检或分组配置已变化，请重新确认巡检会修改的配置"}
 	}
+	if q.Method != s.state.Settings.InspectionMethod {
+		return "", &apiError{409, "检测方式与当前已保存设置不一致，请保存后重新确认巡检"}
+	}
 	if q.Scope == "scheduled" && (!s.state.Settings.Schedule.Enabled || !s.state.ScheduledConfigChangesAcknowledged || s.state.ScheduledConfigurationFingerprint != configurationFingerprint(s.state.Settings, true)) {
 		return "", &apiError{409, "定时巡检未获得当前配置的修改授权"}
 	}
@@ -83,7 +90,7 @@ func (s *Service) Start(ctx context.Context, q StartRequest) (string, error) {
 			return "", &apiError{409, "已有巡检任务正在运行"}
 		}
 	}
-	task := Task{ID: identifier("task"), Scope: q.Scope, Label: "Codex 凭证巡检", CreatedAt: stamp(), Status: "running", Items: []RunItem{}, Concurrency: s.state.Settings.Concurrency.MaxObjects}
+	task := Task{ID: identifier("task"), Scope: q.Scope, Label: "Codex 凭证巡检", Method: q.Method, CreatedAt: stamp(), Status: "running", Items: []RunItem{}, Concurrency: s.state.Settings.Concurrency.MaxObjects}
 	for _, c := range candidates {
 		tid := targetID(c.ID, q.Model)
 		r := s.recordLocked(c.ID)

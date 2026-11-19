@@ -3,6 +3,9 @@ package cpa
 
 import "context"
 
+// DefaultProbeInstructions 保留糖果题原有的系统指令；指纹挑战使用参考环境的原文。
+const DefaultProbeInstructions = "Answer the user's question precisely."
+
 type QuotaWindow struct {
 	Key              string   `json:"key"`
 	RemainingPercent *float64 `json:"remainingPercent"`
@@ -44,7 +47,7 @@ type Adapter interface {
 	ListCredentials(context.Context) ([]Credential, error)
 	RoutingStrategy(context.Context) (string, error)
 	UpdateFields(context.Context, string, Fields) error
-	Probe(context.Context, string, string, string, string, map[string]string) (ProbeReply, error)
+	Probe(context.Context, string, string, string, string, string, map[string]string) (ProbeReply, error)
 }
 
 type HostCall func(string, any, any) error

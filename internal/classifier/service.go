@@ -41,7 +41,7 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 	if err != nil {
 		loc = time.FixedZone("Asia/Shanghai", 8*3600)
 	}
-	s := &Service{adapter: adapter, path: filepath.Join(stateDir, "state.json"), ctx: ctx, cancel: cancel, tasks: map[string]context.CancelFunc{}, location: loc, state: diskState{Version: 6, Settings: DefaultSettings(), Records: map[string]*Record{}, Tasks: []Task{}}}
+	s := &Service{adapter: adapter, path: filepath.Join(stateDir, "state.json"), ctx: ctx, cancel: cancel, tasks: map[string]context.CancelFunc{}, location: loc, state: diskState{Version: 7, Settings: DefaultSettings(), Records: map[string]*Record{}, Tasks: []Task{}}}
 	raw, err := os.ReadFile(s.path)
 	if err == nil {
 		var persisted diskState
@@ -49,7 +49,7 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 			cancel()
 			return nil, fmt.Errorf("状态文件无法解析，已保留原文件：%w", err)
 		}
-		if (persisted.Version < 1 || persisted.Version > 6) || persisted.Records == nil {
+		if (persisted.Version < 1 || persisted.Version > 7) || persisted.Records == nil {
 			cancel()
 			return nil, errors.New("状态文件版本或记录结构不受支持")
 		}
@@ -115,6 +115,16 @@ func New(adapter cpa.Adapter, stateDir string) (*Service, error) {
 			persisted.ScheduledConfigChangesAcknowledged = false
 			persisted.ScheduledConfigurationFingerprint = ""
 			persisted.ScheduleConsentRequired = true
+		}
+		if persisted.Version < 7 {
+			// 旧版只开放糖果任务；添加批次关联不改变题目、判定或既有计划授权。
+			for i := range persisted.Tasks {
+				if persisted.Tasks[i].Method == "" {
+					persisted.Tasks[i].Method = "candy"
+				}
+			}
+			linkHistoricalRounds(&persisted)
+			persisted.Version = 7
 		}
 		persisted.Settings.AcknowledgeScheduledConfigChanges = false
 		s.state = persisted
