@@ -186,6 +186,7 @@ func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c 
 		target.Rounds = target.Rounds[:40]
 	}
 	r.Targets[q.Model] = target
+	var currentItem *RunItem
 	for i := range s.state.Tasks {
 		t := &s.state.Tasks[i]
 		if t.ID != task.ID {
@@ -196,6 +197,7 @@ func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c 
 			if item.TargetID != target.ID {
 				continue
 			}
+			currentItem = item
 			item.State = "done"
 			item.Note = nil
 			if round.Outcome == "cancelled" {
@@ -208,17 +210,12 @@ func (s *Service) commitRound(ctx context.Context, task Task, q StartRequest, c 
 			item.FinishedAt = &round.FinishedAt
 			item.CurrentTest = nil
 			item.RetryAt = nil
+			break
 		}
+		break
 	}
-	if err := s.persistLocked(); err != nil {
-		for i := range s.state.Tasks {
-			for j := range s.state.Tasks[i].Items {
-				item := &s.state.Tasks[i].Items[j]
-				if item.TargetID == target.ID {
-					item.State = "failed"
-					item.Note = str("证据持久化失败：" + err.Error())
-				}
-			}
-		}
+	if err := s.persistLocked(); err != nil && currentItem != nil {
+		currentItem.State = "failed"
+		currentItem.Note = str("证据持久化失败：" + err.Error())
 	}
 }

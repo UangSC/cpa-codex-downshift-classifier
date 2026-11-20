@@ -16,6 +16,7 @@ export function HoverCard({
   placement = 'top',
   pinOnClick = false,
   hideDelay = 0,
+  fadeOnHide = true,
   showDelay = DEFAULT_TOOLTIP_DELAY_MS,
   compact = false,
 }: {
@@ -25,6 +26,8 @@ export function HoverCard({
   /** Clicking the anchor pins the tip; after leaving it lingers, then fades out. */
   pinOnClick?: boolean
   hideDelay?: number
+  /** 普通气泡离开触发器时是否渐隐。 */
+  fadeOnHide?: boolean
   /** 悬浮或聚焦后显示气泡的等待毫秒数。 */
   showDelay?: number
   /** 使用相同主题的两字小气泡，不携带额外操作说明。 */
@@ -90,12 +93,24 @@ export function HoverCard({
     }, showDelay)
   }, [clearTimers, openNow, showDelay, visible])
 
+  const hideNow = useCallback(() => {
+    clearTimers()
+    setVisible(false)
+    setFading(false)
+    pinnedRef.current = false
+    setPinned(false)
+  }, [clearTimers])
+
   /**
    * Leaving schedules the close. A pinned tip waits `PIN_LINGER_MS` first, so moving back
    * inside during that window keeps it open; it then fades out over `FADE_MS`.
    */
   const scheduleHide = useCallback(() => {
     if (selectionDrag.current || (pinnedRef.current && hasSelectedText())) return
+    if (!fadeOnHide && !pinnedRef.current) {
+      hideNow()
+      return
+    }
     clearTimers()
     const wait = pinnedRef.current ? Math.max(PIN_LINGER_MS, hideDelay) : hideDelay
     hideTimer.current = window.setTimeout(() => {
@@ -109,15 +124,7 @@ export function HoverCard({
         setPinned(false)
       }, FADE_MS)
     }, wait)
-  }, [clearTimers, hideDelay, hasSelectedText])
-
-  const hideNow = useCallback(() => {
-    clearTimers()
-    setVisible(false)
-    setFading(false)
-    pinnedRef.current = false
-    setPinned(false)
-  }, [clearTimers])
+  }, [clearTimers, fadeOnHide, hideDelay, hideNow, hasSelectedText])
 
   useEffect(
     () => () => {

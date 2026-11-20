@@ -110,14 +110,6 @@ export const REASON_DESC: Record<ReasonCode, string> = {
   'method-result': '该轮结果由所选检测方式提供。',
 }
 
-/** Status-light legend, reused by the toolbar help and the settings page. */
-export const LIGHT_LEGEND: { tone: 'normal' | 'uncertain' | 'downshift' | 'empty'; title: string; desc: string }[] = [
-  { tone: 'normal', title: '正常', desc: '该轮检测完整通过' },
-  { tone: 'uncertain', title: '不确定', desc: '证据不足、结果待确认，或错误后的重试过程' },
-  { tone: 'downshift', title: '降档', desc: '答案不符、指纹异常或频繁 502/503/429 达到判定条件' },
-  { tone: 'empty', title: '无记录', desc: '没有检测记录或有效数据' },
-]
-
 /**
  * Whether a round outcome moves the group. Uncertain / cancelled / blocked rounds must
  * keep whatever prefix is already applied.

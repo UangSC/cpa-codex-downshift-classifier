@@ -13,7 +13,7 @@
 .pools .pagination-button { padding-inline: 8px; font-size: 11px; }
 .pools .pool-body { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--pool-page-rows, 2), 220px); grid-auto-rows: 220px; gap: 8px; min-height: calc(var(--pool-page-rows, 2) * 220px + (var(--pool-page-rows, 2) - 1) * 8px); align-content: start; }
 .selection-cross-page { color: var(--text-3); font-size: 11px; font-weight: 400; margin-left: 10px; }
-.pagination-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.pagination-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .pagination-settings .field { margin: 0; }
 .pagination-settings .input-group { max-width: 150px; }
 .pagination-setting-hint { margin-top: 10px; color: var(--text-3); font-size: 12px; line-height: 1.7; }

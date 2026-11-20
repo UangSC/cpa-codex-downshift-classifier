@@ -12,6 +12,8 @@ import { getInspectionMethod, listInspectionMethods } from '../inspection'
 import { restoreManualReminder } from '../lib/manualInspectionConsent'
 import { RequestHeadersEditor } from '../components/RequestHeadersEditor'
 import { formatSeconds } from '../lib/format'
+import { ClearHistoryPanel } from '../components/ClearHistoryPanel'
+import { DEFAULT_SETTINGS, PAGINATION_FIELDS } from '../data/defaults'
 
 function RetryEditor() {
   const { settings, update } = useSettingsEditor()
@@ -287,23 +289,22 @@ export function SettingsView() {
 
         <ScheduleEditor />
 
-        <Panel title="分页数量" desc="分别设置列表、卡片和三栏的显示数量。分页不改变巡检范围，也不清除跨页选择。">
+        <Panel title="分页数量" desc="分别设置列表、卡片、三栏和账号统计每页显示的凭证数量。">
           <div className="pagination-settings">
-            {([
-              { key: 'list', label: '列表每页', max: 100, fallback: 10 },
-              { key: 'card', label: '卡片每页', max: 100, fallback: 8 },
-              { key: 'pool', label: '三栏每栏每页', max: 24, fallback: 4 },
-            ] as const).map((item) => <div className="field" key={item.key}>
-              <label className="field-label" htmlFor={`pagination-${item.key}`}>{item.label}</label>
+            {PAGINATION_FIELDS.map(({ key, label, max }) => <div className="field" key={key}>
+              <label className="field-label" htmlFor={`pagination-${key}`}>{label}每页</label>
               <div className="input-group input-compact">
-                <input id={`pagination-${item.key}`} type="number" min={1} max={item.max} step={1}
-                  value={settings.pagination?.[item.key] ?? item.fallback} aria-label={`${item.label}凭证数`}
-                  onChange={(event) => update({ pagination: { ...(settings.pagination ?? { list: 10, card: 8, pool: 4 }), [item.key]: Math.max(1, Math.min(item.max, Math.trunc(Number(event.target.value)) || 1)) } })} />
+                <input id={`pagination-${key}`} type="number" min={1} max={max} step={1}
+                  value={settings.pagination?.[key] ?? DEFAULT_SETTINGS.pagination[key]} aria-label={`${label}每页凭证数`}
+                  onChange={(event) => {
+                    const size = Math.max(1, Math.min(max, Math.trunc(Number(event.target.value)) || 1))
+                    update({ pagination: { ...DEFAULT_SETTINGS.pagination, ...settings.pagination, [key]: size } })
+                  }} />
                 <span className="unit">个</span>
               </div>
             </div>)}
           </div>
-          <p className="pagination-setting-hint">默认列表 10 个、卡片 8 个、三栏每栏 4 个。三栏各自翻页，“巡检全部符合条件”仍包含全部符合条件的凭证。</p>
+          <p className="pagination-setting-hint">默认列表 10 个、卡片 8 个、三栏每栏 4 个、账号统计 4 个。三栏各自翻页，「巡检全部」包含所有符合条件的凭证。</p>
         </Panel>
 
         <Panel title="数据来源">
@@ -321,6 +322,7 @@ export function SettingsView() {
             </Chip>
           </div>
         </Panel>
+        <ClearHistoryPanel />
       </div>
     </>
   )

@@ -10,6 +10,7 @@ const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'all', label: '全部' }, { value: 'normal', label: '正常' }, { value: 'downshift', label: '降档' },
   { value: 'uncertain', label: '不确定' }, { value: 'incomplete', label: '未完成' },
 ]
+const BATCH_PAGE_SIZE = 10
 
 export function handleHistoryShortcut(event: KeyboardEvent, focusSearch: () => void): boolean {
   if (hasOpenDialog() || isEditingTarget(event.target) || isCompositionEvent(event) || !isPlainShortcut(event, '/')) return false
@@ -25,6 +26,7 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
   const [filter, setFilter] = useState<HistoryFilter>('all')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [visibleLimit, setVisibleLimit] = useState(BATCH_PAGE_SIZE)
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => handleHistoryShortcut(event, () => searchRef.current?.focus())
@@ -43,7 +45,8 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
   const filtered = useMemo(() => batches.map((batch) => ({
     ...batch, entries: batch.entries.filter((entry) => historyEntryMatches(entry, filter, query)),
   })).filter((batch) => batch.entries.length), [batches, filter, query])
-  const filteredCount = filtered.reduce((count, batch) => count + batch.entries.length, 0)
+  const visible = filtered.slice(0, visibleLimit)
+  const visibleCount = visible.reduce((count, batch) => count + batch.entries.length, 0)
 
   return <>
     <div className="page-head">
@@ -55,20 +58,24 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
     <div className="toolbar">
       <div className="search">
         <Icon.Search />
-        <input ref={searchRef} type="search" placeholder="搜索凭证、模型或判定原因" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="搜索历史记录" />
+        <input ref={searchRef} type="search" placeholder="搜索凭证、模型或判定原因" value={query}
+          onChange={(event) => { setQuery(event.target.value); setVisibleLimit(BATCH_PAGE_SIZE) }} aria-label="搜索历史记录" />
       </div>
-      <Segmented ariaLabel="按历史结论筛选" value={filter} onChange={setFilter} options={FILTERS.map((option) => ({
+      <Segmented ariaLabel="按历史结论筛选" value={filter} onChange={(value) => {
+        setFilter(value)
+        setVisibleLimit(BATCH_PAGE_SIZE)
+      }} options={FILTERS.map((option) => ({
         value: option.value, label: option.label, count: counts[option.value],
         tone: option.value === 'normal' ? 'normal' as const : option.value === 'downshift' ? 'downshift' as const :
           option.value === 'uncertain' ? 'uncertain' as const : option.value === 'incomplete' ? 'empty' as const : undefined,
       }))} />
-      <span className="inspection-batch-summary">{filtered.length} 批 · {filteredCount} 个凭证结果</span>
+      <span className="inspection-batch-summary" aria-live="polite">已显示 {visible.length} / {filtered.length} 批 · {visibleCount} 个凭证结果</span>
     </div>
     {!filtered.length ? <div className="empty">
       <div className="empty-icon"><Icon.History /></div>
       <h3>{entries.length ? '没有符合条件的历史' : '还没有检测记录'}</h3>
       <p>{entries.length ? '试试切换筛选条件或清空搜索词。' : '执行一次巡检后，这里会按批次保留判定依据与任务进度。'}</p>
-    </div> : filtered.map((batch) => {
+    </div> : visible.map((batch) => {
       const original = batchesById.get(batch.id)!
       const running = batch.task?.status === 'running'
       const open = expanded[batch.id] ?? (batch.id === filtered[0]?.id)
@@ -94,5 +101,8 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
         <InspectionBatchItems entries={batch.entries} now={now} onOpenDetail={onOpenDetail} />
       </InspectionBatch>
     })}
+    {visible.length < filtered.length && <div className="inspection-batch-more">
+      <button type="button" className="btn" onClick={() => setVisibleLimit((limit) => limit + BATCH_PAGE_SIZE)}>加载更多</button>
+    </div>}
   </>
 }

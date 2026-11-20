@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 export type CardIdentityFamily = 'free' | 'plus' | 'pro' | 'team' | 'unknown'
-export type CardIdentityPattern = 'ring' | 'monogram' | 'orbit'
+export type CardIdentityPattern = 'ring' | 'monogram'
 
 export interface CardIdentity {
   family: CardIdentityFamily
@@ -9,12 +9,22 @@ export interface CardIdentity {
   theme: string
   glyph: 'F' | 'P' | 'T' | 'C'
   pattern: CardIdentityPattern
-  hue: number
   accentLight: string
   accentDark: string
   shadeLight: string
   shadeDark: string
 }
+
+// 色值取自对应徽章。黑金铭牌同时保留深色底和金色高光。
+const palettes = {
+  free: { accentLight: '#aabdd2', accentDark: '#c6d7e8', shadeLight: '#657d97', shadeDark: '#8fa8c5' },
+  plus: { accentLight: '#9cde40', accentDark: '#b8ed62', shadeLight: '#648b23', shadeDark: '#8ab84c' },
+  mint: { accentLight: '#18db83', accentDark: '#4dffb2', shadeLight: '#05704d', shadeDark: '#1db77e' },
+  yellow: { accentLight: '#ffca32', accentDark: '#ffe479', shadeLight: '#966300', shadeDark: '#cd991e' },
+  gold: { accentLight: '#dca646', accentDark: '#ffcf70', shadeLight: '#493017', shadeDark: '#a5702d' },
+  champagne: { accentLight: '#d9bd83', accentDark: '#fff1c7', shadeLight: '#293a52', shadeDark: '#101a28' },
+  unknown: { accentLight: '#bac9d8', accentDark: '#a8bed5', shadeLight: '#62819e', shadeDark: '#5e7a97' },
+} satisfies Record<string, Pick<CardIdentity, 'accentLight' | 'accentDark' | 'shadeLight' | 'shadeDark'>>
 
 export interface CardIdentityAttributes {
   'data-card-identity': string
@@ -32,23 +42,16 @@ export function cardIdentity(plan: string): CardIdentity {
   const matched = normalized.match(/(?:^|\D)(100|200|500)(?!\d)/)?.[1]
   const tier: CardIdentity['tier'] = family === 'pro' || family === 'team'
     ? (matched ? Number(matched) as 100 | 200 | 500 : 100) : 0
-  const glyph = family === 'free' ? 'F' : family === 'unknown' ? 'C' : 'P'
-  const pattern: CardIdentityPattern = tier === 500 ? 'orbit' : family === 'plus' ? 'ring' : 'monogram'
-  const hue = tier === 500 ? 43 : tier === 200 ? 270 : tier === 100 ? 243 : family === 'plus' ? 222 : 214
-  const saturation = family === 'free' ? 5 : tier === 500 ? 78 : family === 'unknown' ? 30 : 68
-  const accentLight = `hsl(${hue} ${saturation}% ${family === 'free' ? 66 : tier === 500 ? 44 : 51}%)`
-  const accentDark = `hsl(${hue} ${family === 'free' ? 8 : saturation}% ${family === 'free' ? 83 : tier === 500 ? 67 : 72}%)`
-  const shadeLight = tier === 500 ? 'hsl(225 15% 13%)' : family === 'free' ? 'hsl(210 4% 96%)'
-    : `hsl(${hue + (family === 'plus' ? -44 : 12)} 35% 82%)`
-  const shadeDark = tier === 500 ? 'hsl(228 24% 7%)' : family === 'free' ? 'hsl(214 7% 20%)'
-    : `hsl(${hue + (family === 'plus' ? -44 : 12)} 35% 26%)`
-  return { family, tier, theme: tier ? `${family}-${tier}` : family, glyph, pattern, hue,
-    accentLight, accentDark, shadeLight, shadeDark }
+  const glyph = family === 'free' ? 'F' : family === 'unknown' ? 'C' : family === 'team' ? 'T' : 'P'
+  const pattern = family === 'plus' ? 'ring' : 'monogram'
+  const palette = tier === 500 ? (family === 'team' ? palettes.champagne : palettes.gold) : tier === 200 ? palettes.yellow : tier === 100 ? palettes.mint
+    : palettes[family === 'free' || family === 'plus' ? family : 'unknown']
+  return { family, tier, theme: tier ? `${family}-${tier}` : family, glyph, pattern, ...palette }
 }
 
 /** 背景字母是本地 SVG 图案，不产生网络请求，也不加入读屏内容。 */
 function monogram(glyph: CardIdentity['glyph'], color: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="210" viewBox="0 0 200 210"><text x="100" y="169" text-anchor="middle" font-family="Arial,sans-serif" font-size="178" font-weight="800" fill="${color}" opacity="0.13">${glyph}</text></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="210" viewBox="0 0 200 210"><text x="100" y="169" text-anchor="middle" font-family="Arial,sans-serif" font-size="178" font-weight="800" fill="${color}" opacity="0.17">${glyph}</text></svg>`
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
 }
 
@@ -59,7 +62,7 @@ export function cardIdentityAttributes(plan: string): CardIdentityAttributes {
     '--identity-accent-dark': identity.accentDark,
     '--identity-shade-light': identity.shadeLight,
     '--identity-shade-dark': identity.shadeDark,
-    '--identity-monogram-light': monogram(identity.glyph, identity.accentLight),
+    '--identity-monogram-light': monogram(identity.glyph, identity.shadeLight),
     '--identity-monogram-dark': monogram(identity.glyph, identity.accentDark),
   } as CSSProperties
   return { 'data-card-identity': identity.theme, 'data-card-glyph': identity.glyph,

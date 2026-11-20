@@ -3,9 +3,16 @@
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(11, 15, 23, 0.28);
+  background: rgb(12 21 37 / 30%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 60;
-  animation: fade 0.16s ease-out;
+  animation: fade 240ms ease-out both;
+}
+
+.drawer-backdrop[data-open='false'] {
+  pointer-events: none;
+  animation: drawer-fade-out 240ms ease-in both;
 }
 
 @keyframes fade {
@@ -14,46 +21,105 @@
   }
 }
 
+@keyframes drawer-fade-out {
+  to { opacity: 0; }
+}
+
 .drawer {
+  --drawer-gutter: 22px;
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(420px, 100vw);
-  background: var(--surface);
-  border-left: 1px solid var(--border);
+  inset: 0 0 0 auto;
+  width: min(550px, 100%);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border-left: 1px solid var(--glass-border);
+  border-radius: 24px 0 0 24px;
   box-shadow: var(--shadow-3);
   z-index: 61;
   display: flex;
   flex-direction: column;
-  animation: slide-in 0.2s cubic-bezier(0.22, 0.8, 0.3, 1);
+  overflow: hidden;
+  animation: drawer-slide 280ms cubic-bezier(.22, .75, .15, 1) both;
   outline: none;
 }
 
-@keyframes slide-in {
+.drawer[data-open='false'] {
+  pointer-events: none;
+  animation: drawer-slide-out 280ms ease-in both;
+}
+
+@keyframes drawer-slide {
   from {
-    transform: translateX(24px);
-    opacity: 0.4;
+    transform: translateX(100%);
+    opacity: .5;
+  }
+}
+
+@keyframes drawer-slide-out {
+  to {
+    transform: translateX(100%);
+    opacity: .5;
   }
 }
 
 .drawer-head {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 17px var(--drawer-gutter);
   border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--accent-soft), transparent 75%);
+}
+
+.drawer-heading {
+  flex: 1;
+  min-width: 0;
 }
 
 .drawer-head h3 {
-  font-size: 14.5px;
-  font-weight: 620;
+  font-size: 19px;
+  font-weight: 660;
+  margin-bottom: 3px;
+}
+
+.drawer-description {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .drawer-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px 24px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  padding: 16px var(--drawer-gutter) 24px;
+}
+
+.drawer-empty {
+  padding: 24px 16px;
+}
+
+.drawer-empty h4 {
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 5px;
+}
+
+@media (max-width: 550px) {
+  .drawer {
+    --drawer-gutter: 16px;
+    border-left: 0;
+    border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer[data-open], .drawer-backdrop[data-open] { animation: none; }
+  .drawer[data-open='false'], .drawer-backdrop[data-open='false'] { visibility: hidden; }
 }
 
 .task {

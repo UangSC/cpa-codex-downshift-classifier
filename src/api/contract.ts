@@ -6,6 +6,7 @@ export const ENDPOINTS = {
   snapshot: `${ROOT}/snapshot`, checks: `${ROOT}/checks`,
   task: (id: string) => `${ROOT}/tasks?id=${encodeURIComponent(id)}`,
   cancelTask: (id: string) => `${ROOT}/tasks/cancel?id=${encodeURIComponent(id)}`,
+  clearHistory: `${ROOT}/history/clear`,
   sync: `${ROOT}/sync`, settings: `${ROOT}/settings`, routing: `${ROOT}/routing`,
   exclusions: `${ROOT}/exclusions`,
   quotaRefresh: `${ROOT}/quota/refresh`,
@@ -59,6 +60,7 @@ export interface Backend {
   startChecks(request: StartChecksRequest): Promise<StartChecksResponse>
   loadTask(id: string): Promise<InspectionTask>
   cancelTask(id: string): Promise<void>
+  clearHistory(): Promise<void>
   sync(request: SyncRequest): Promise<SyncResponse>
   saveSettings(settings: Settings, acknowledgeScheduledConfigChanges?: boolean): Promise<void>
   saveRouting(request: RoutingRequest): Promise<void>

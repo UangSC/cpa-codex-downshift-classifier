@@ -164,7 +164,7 @@ export default function App() {
         <ExclusionDrawer />
         <EvidenceSheet />
         <Toasts />
-        <SettingsSavePrompt />
+        {tab === 'settings' && <SettingsSavePrompt />}
       </div>
     </SelectionProvider>
   )

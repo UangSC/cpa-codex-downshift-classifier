@@ -52,10 +52,10 @@ export function RunPanel() {
     running.items.filter((item) => ['done', 'skipped', 'cancelled', 'failed'].includes(item.state)).length + ' / ' + running.items.length + ' 个凭证已处理' :
     tasks.length ? '最近 ' + tasks.length + ' 批巡检' : '还没有执行过巡检'}
     head={running ? <button type="button" className="btn btn-sm btn-danger" disabled={!connected} onClick={() => cancelTask(running.id)}><Icon.Stop />停止</button> : undefined}>
-    {runningBatch ? renderBatch(runningBatch) : <div className="empty" style={{ padding: '28px 16px', marginBottom: 12 }}>
-      <div className="empty-icon"><Icon.History /></div><h3>当前没有进行中的巡检</h3>
-      <p>在凭证列表中选择对象后点击「测试」，或使用「巡检全部符合条件」。</p>
+    {runningBatch ? renderBatch(runningBatch) : <div className="empty drawer-empty">
+      <div className="empty-icon"><Icon.History /></div><h4>当前没有进行中的巡检</h4>
+      <p>在凭证列表中选择对象后点击「测试」，或使用「巡检全部」。</p>
     </div>}
-    {!!recent.length && <><div className="history-day" style={{ marginTop: 4 }}>最近批次</div>{recent.map(renderBatch)}</>}
+    {!!recent.length && <><div className="history-day">最近批次</div>{recent.map(renderBatch)}</>}
   </Drawer>
 }

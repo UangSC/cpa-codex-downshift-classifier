@@ -31,8 +31,8 @@
 .inspection-batch-entry .history-side { display: flex; flex-direction: column; gap: 3px; }
 .inspection-batch-entry.is-pending { cursor: default; }
 .inspection-batch-summary { font-variant-numeric: tabular-nums; }
+.inspection-batch-more { display: flex; justify-content: center; margin-top: 18px; }
 .inspection-batch-empty { padding: 15px 8px; color: var(--text-3); font-size: 12px; }
-.drawer.run-panel { width: min(500px, 100vw); }
 .recent-batch-list .inspection-batch-entry {
   grid-template-columns: 24px minmax(0, 1fr) auto;
   grid-template-rows: 20px 52px;

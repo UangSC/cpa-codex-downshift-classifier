@@ -2,6 +2,39 @@ package classifier
 
 import "time"
 
+// clearInspectionHistory drops evidence and completed tasks while retaining credential configuration.
+func (s *Service) clearInspectionHistory() error {
+	s.mutation.Lock()
+	defer s.mutation.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A cancelled task can still have workers returning evidence until it leaves the queue.
+	if len(s.tasks) != 0 {
+		return &apiError{409, "巡检仍在运行或收尾，请等待结束后重试"}
+	}
+	for _, task := range s.state.Tasks {
+		if task.Status == "running" {
+			return &apiError{409, "巡检仍在运行或收尾，请等待结束后重试"}
+		}
+	}
+
+	previous := s.state
+	s.state.Tasks = []Task{}
+	s.state.Records = make(map[string]*Record, len(previous.Records))
+	for id, record := range previous.Records {
+		if record != nil {
+			retained := *record
+			retained.Targets = map[string]Target{}
+			s.state.Records[id] = &retained
+		}
+	}
+	if err := s.persistLocked(); err != nil {
+		s.state = previous
+		return err
+	}
+	return nil
+}
+
 // linkHistoricalRounds only recovers a batch from an unambiguous recorded task,
 // target and time interval. Nearby timestamps alone never identify a batch.
 func linkHistoricalRounds(state *diskState) {

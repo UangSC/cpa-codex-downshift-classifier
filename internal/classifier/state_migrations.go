@@ -19,6 +19,7 @@ func (s *Service) loadState() error {
 		return err
 	}
 	var persisted diskState
+	persisted.Settings.Pagination.Statistics = maxStatisticsPageSize
 	if err := json.Unmarshal(raw, &persisted); err != nil {
 		return fmt.Errorf("状态文件无法解析，已保留原文件：%w", err)
 	}

@@ -78,8 +78,9 @@ export function formatDuration(ms: number | null | undefined): string {
   if (ms < 1000) return `${Math.round(ms)} ms`
   const s = ms / 1000
   if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)} 秒`
-  const m = Math.floor(s / 60)
-  const rest = Math.round(s % 60)
+  const seconds = Math.round(s)
+  const m = Math.floor(seconds / 60)
+  const rest = seconds % 60
   return `${m} 分 ${rest} 秒`
 }
 

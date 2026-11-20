@@ -29,9 +29,41 @@
   flex-wrap: wrap;
 }
 
-.scope-note {
-  font-size: 12px;
+.page-head.overview-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title actions" "summary summary";
+  align-items: center;
+  gap: 4px 16px;
+}
+
+.overview-head h2 { grid-area: title; }
+
+.overview-summary {
+  grid-area: summary;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
   color: var(--text-3);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.overview-head .head-actions { grid-area: actions; }
+
+.overview-head .head-actions .btn { height: 40px; }
+
+@media (max-width: 600px) {
+  .page-head.overview-head {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "title" "summary" "actions";
+    gap: 9px;
+  }
+
+  .overview-summary { column-gap: 16px; }
+  .overview-head .head-actions { gap: 6px; }
+  .overview-head .head-actions .btn { flex: 1 0 auto; padding-inline: 6px; }
+  .overview-head .head-actions .count-badge { display: none; }
 }
 
 /* ------------------------------------------------------------ stat cards */

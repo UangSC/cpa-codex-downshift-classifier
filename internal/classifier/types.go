@@ -20,10 +20,14 @@ type TimeWindow struct {
 	EndMinute   int    `json:"endMinute"`
 }
 type Pagination struct {
-	List int `json:"list"`
-	Card int `json:"card"`
-	Pool int `json:"pool"`
+	List       int `json:"list"`
+	Card       int `json:"card"`
+	Pool       int `json:"pool"`
+	Statistics int `json:"statistics"`
 }
+
+const maxStatisticsPageSize = 4
+
 type Schedule struct {
 	Enabled         bool         `json:"enabled"`
 	Mode            string       `json:"mode"`
@@ -75,7 +79,7 @@ func DefaultSettings() Settings {
 	s.InspectionModel = "gpt-6.1-sol"
 	s.ReasoningEffort = "low"
 	s.HeaderOverrides = map[string]string{}
-	s.Pagination = Pagination{List: 10, Card: 8, Pool: 4}
+	s.Pagination = Pagination{List: 10, Card: 8, Pool: 4, Statistics: maxStatisticsPageSize}
 	s.Retry.MaxRetries = 2
 	s.Retry.BaseDelayMs = 5000
 	s.Retry.BackoffFactor = 2

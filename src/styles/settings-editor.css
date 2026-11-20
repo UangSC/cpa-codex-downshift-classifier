@@ -60,9 +60,9 @@
   border-color: #cb6875;
 }
 :root body .cred-table .cred-table-head {
-  font-size: 11px;
+  height: auto;
+  font-size: 13px;
   font-weight: 650;
   color: var(--text-2);
-  padding-block: 11px;
   border-bottom: 1px solid var(--border);
 }

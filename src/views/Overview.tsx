@@ -2,12 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
 import { evaluateEligibility, refreshCredentialsQuota, resyncCredential, saveInspectionOptions, startInspection } from '../store/actions'
 import { buildViews, sortViews, type CredentialView } from '../lib/derive'
-import { formatRelative } from '../lib/format'
-import { LIGHT_LEGEND } from '../lib/rules'
 import { CredentialGrid, CredentialList, CredentialPools, CredentialPager, credentialPage } from '../components/Credentials'
-import { Dot, Icon, Modal, useNow } from '../components/ui'
+import { Dot, Icon, NameMaskToggle, useNow } from '../components/ui'
 import type { VerdictFilter } from '../store/store'
-import { methodLabel } from '../inspection'
 import { activeInspectionCredentialIds, setCredentialExclusions } from '../store/exclusions'
 import { ExclusionIcon } from '../components/ExclusionDrawer'
 import { hasOpenDialog, isCompositionEvent, isEditingTarget, isPlainShortcut, isPrimaryShortcut } from '../lib/keyboard'
@@ -195,47 +192,35 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
     return () => document.removeEventListener('keydown', onKey)
   }, [filteredViews, state.excluding, state.selectTargets])
 
-  const lastCompleted = state.tasks.find((t) => t.status === 'completed')
-  const lastCheckedAt = lastCompleted?.finishedAt ?? null
-
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h2>凭证与模型</h2>
-          <div className="sub">
-            参与 {participating.length} 个 codex 凭证 · 不参与 {excludedCount} 个 · 检测模型 {settings.inspectionModel} ·{' '}
-            {lastCheckedAt ? `上次巡检 ${formatRelative(lastCheckedAt, now)}` : '尚未执行过巡检'}
-          </div>
-          <div className="scope-note" style={{ marginTop: 6 }}>
-            {methodLabel(settings.inspectionMethod)} · {settings.routing.mode === 'prefix' ? '模型前缀分组' : '优先级分组'} · 额度门槛 {settings.quota.minRemainingPercent}% · 并发{' '}
-            {settings.concurrency.maxObjects}
-            {' · '}
-            <button type="button" className="btn-link" onClick={() => state.setTab('settings')}>
-              调整
-            </button>
-          </div>
+      <div className="page-head overview-head">
+        <h2>凭证与模型</h2>
+        <div className="overview-summary">
+          <span>参与凭证数：{credentials.length - excludedCount}</span>
+          <span>不参与数：{excludedCount}</span>
+          <span>模型：{settings.inspectionModel}</span>
+          <span>当前分组模式：{settings.routing.mode === 'prefix' ? '前缀分组' : '优先级分组'}</span>
         </div>
         <div className="head-actions">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => state.setLegendOpen(true)}>
-            <Icon.Info />
-            状态含义
-          </button>
           <button type="button" className={`btn quota-refresh-button${state.quotaRefreshing.length ? ' is-refreshing' : ''}`}
             disabled={state.connection !== 'connected' || Boolean(state.quotaRefreshing.length) || !visibleQuotaIds.length}
             aria-busy={Boolean(state.quotaRefreshing.length)}
             onClick={() => void refreshCredentialsQuota(visibleQuotaIds)}>
-            <Icon.Refresh />{state.quotaRefreshing.length ? '正在刷新额度…' : '刷新额度状态'}
+            <Icon.Refresh />
+            刷新额度
           </button>
           <button
             type="button"
             className="btn btn-primary"
+            aria-label="巡检全部"
+            aria-description={`符合条件的凭证 ${eligible.length} 个`}
             disabled={state.connection !== 'connected' || state.starting || state.settingsSaving || Boolean(state.settingsDraft) || state.excluding.length > 0 || eligible.length === 0}
             onClick={() => startInspection('batch')}
           >
             <Icon.Play />
-            巡检全部符合条件
-            <span className="count-badge">{eligible.length}</span>
+            巡检全部
+            <span className="count-badge" aria-hidden="true">{eligible.length}</span>
           </button>
         </div>
       </div>
@@ -340,15 +325,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <option value="quota">按剩余额度</option>
           <option value="name">按名称</option>
         </select>
-        <button
-          type="button"
-          className="btn btn-sm eye-btn"
-          aria-pressed={settings.maskNames}
-          onClick={() => state.updateSettings({ maskNames: !settings.maskNames })}
-          aria-label={settings.maskNames ? '取消隐藏账号名称' : '隐藏账号名称（模糊）'}
-        >
-          {settings.maskNames ? <Icon.EyeOff /> : <Icon.Eye />}
-        </button>
+        <NameMaskToggle />
         <div className="segmented layout-switch" role="group" aria-label="布局">
           {LAYOUTS.map((item) => (
             <button
@@ -418,39 +395,6 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         </div>
       )}
 
-      <Modal
-        open={state.legendOpen}
-        onClose={() => state.setLegendOpen(false)}
-        title="近期状态灯的含义"
-        sub="左侧更早，右侧更近；每一格代表该凭证的一轮检测"
-        footer={
-          <>
-            <span className="spacer" />
-            <button type="button" className="btn" onClick={() => state.setLegendOpen(false)}>
-              知道了
-            </button>
-          </>
-        }
-      >
-        <div className="legend">
-          {LIGHT_LEGEND.map((item) => (
-            <div className="legend-row" key={item.tone}>
-              <span className={`light light-${item.tone}`} aria-hidden="true" style={{ marginTop: 3 }} />
-              <span className="legend-title">{item.title}</span>
-              <span className="legend-desc">{item.desc}</span>
-            </div>
-          ))}
-        </div>
-        <div className="divider" />
-        <p style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.75 }}>
-          一个 Codex 账号降智后不会只在某一个模型名上表现正常，因此判定按凭证计算：只要检测模型得出了降档结论，
-          {settings.routing.mode === 'prefix' ? '该凭证的全部模型会应用降档前缀。' : '该凭证会应用降档组的优先级配置，模型名称保持不变。'}恢复需要新一轮完整检测通过。
-        </p>
-        <p style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.75, marginTop: 6 }}>
-          一轮检测中的多次重试归属于该轮，不会额外生成一格；取消或未能执行的一轮显示为空心格。
-          历史正常记录不会掩盖当前的降档结论，恢复后旧的红格仍会保留。
-        </p>
-      </Modal>
     </>
   )
 }

@@ -30,6 +30,9 @@ func validateSettings(v Settings) error {
 	if v.Pagination.List < 1 || v.Pagination.List > 100 || v.Pagination.Card < 1 || v.Pagination.Card > 100 || v.Pagination.Pool < 1 || v.Pagination.Pool > 24 {
 		return bad("分页数量无效：列表/卡片 1～100，三栏每栏 1～24")
 	}
+	if v.Pagination.Statistics < 1 || v.Pagination.Statistics > maxStatisticsPageSize {
+		return bad("账号统计分页数量必须为 1～4")
+	}
 	if _, err := cpa.ValidateHeaderOverrides(v.HeaderOverrides); err != nil {
 		return bad(err.Error())
 	}

@@ -2,7 +2,7 @@
 export { Icon } from './ui/icons'
 export { Dot, Chip, VerdictPill, Switch, Segmented, QuotaMeter, useNow } from './ui/primitives'
 export type { ChipTone, SegmentedOption } from './ui/primitives'
-export { SecretName } from './ui/identity'
+export { NameMaskToggle, SecretName } from './ui/identity'
 export { HoverCard } from './ui/HoverCard'
 export { Collapse, Modal, Drawer } from './ui/overlays'
 export { SelectionProvider, useSelection, useSelectionSet } from './ui/selection'

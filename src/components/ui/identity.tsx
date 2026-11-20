@@ -1,4 +1,17 @@
 import { useStore } from '../../store/store'
+import { Icon } from './icons'
+
+export function NameMaskToggle() {
+  const masked = useStore((state) => state.settings.maskNames)
+  const updateSettings = useStore((state) => state.updateSettings)
+  return (
+    <button type="button" className="btn btn-sm eye-btn" aria-pressed={masked}
+      aria-label={masked ? '取消隐藏账号名称' : '隐藏账号名称（模糊）'}
+      onClick={() => updateSettings({ maskNames: !masked })}>
+      {masked ? <Icon.EyeOff /> : <Icon.Eye />}
+    </button>
+  )
+}
 
 /**
  * Credential identity. Blur is a presentation toggle (the eye button); the text itself is

@@ -226,28 +226,6 @@
   gap: 6px;
 }
 
-.legend {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.legend-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.legend-row .legend-title {
-  font-weight: 560;
-  min-width: 44px;
-}
-
-.legend-row .legend-desc {
-  color: var(--text-3);
-}
-
 .divider {
   height: 1px;
   background: var(--border);

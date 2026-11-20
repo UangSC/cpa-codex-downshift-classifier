@@ -79,22 +79,9 @@ export function ExclusionDrawer() {
   const connection = useStore((state) => state.connection)
   const starting = useStore((state) => state.starting)
   const now = useNow(30_000)
-  const [present, setPresent] = useState(open)
-  const [entered, setEntered] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>([])
 
-  useEffect(() => {
-    if (open) {
-      setPresent(true)
-      const frame = requestAnimationFrame(() => setEntered(true))
-      return () => cancelAnimationFrame(frame)
-    }
-    setEntered(false)
-    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280
-    const timer = window.setTimeout(() => setPresent(false), delay)
-    return () => window.clearTimeout(timer)
-  }, [open])
   const excluded = useMemo(() => credentials.filter((credential) => credential.inspectionExcluded), [credentials])
   const views = useMemo(() => buildViews(excluded, targets, settings), [excluded, targets, settings])
   const filtered = useMemo(() => {
@@ -110,17 +97,16 @@ export function ExclusionDrawer() {
   const canRestoreAll = !!excluded.length && excluded.every((credential) => !disabledFor(credential))
   useEffect(() => { setSelected((current) => current.filter((id) => excluded.some((credential) => credential.id === id))) }, [excluded])
   const toggle = (id: string) => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])
-  return <Drawer open={present} onClose={() => close(false)} title="不参与巡检"
+  return <Drawer open={open} onClose={() => close(false)} title="不参与巡检"
     onEscape={(event) => {
       if (isEditingTarget(event.target) || chosen.length === 0) return false
       setSelected([])
       return true
     }}
     sub="这些凭证不参加手动、批量或定时巡检，仍可用于 CPA 正常请求。"
-    className={`exclusion-drawer ${entered ? 'is-visible' : 'is-leaving'}`}
-    backdropClassName={`exclusion-drawer-backdrop ${entered ? 'is-visible' : 'is-leaving'}`}
+    className="exclusion-drawer"
     head={<span className="exclusion-drawer-count">{excluded.length}</span>}>
-    <div className={`exclusion-drawer-content ${entered ? 'is-open' : 'is-closing'}`}>
+    <div className="exclusion-drawer-content">
       <div className="exclusion-drawer-policy"><ExclusionIcon /><span>原分类、历史、模型前缀、优先级与权重保持不变。</span></div>
       <div className="exclusion-drawer-search"><Icon.Search /><input className="input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索不参与巡检的凭证" aria-label="搜索不参与巡检的凭证" /></div>
       <div className="exclusion-drawer-toolbar">
@@ -129,7 +115,7 @@ export function ExclusionDrawer() {
       </div>
       <div className="exclusion-drawer-cards">
         {filtered.length ? filtered.map((view) => <ExcludedCredential key={view.credential.id} view={view} selected={chosen.includes(view.credential.id)} onSelect={() => toggle(view.credential.id)} disabled={disabledFor(view.credential)} now={now} />)
-          : <div className="exclusion-drawer-empty"><span className="exclusion-empty-symbol"><ExclusionIcon /></span><h4>{search ? '没有匹配的凭证' : '暂无不参与巡检的凭证'}</h4><p>{search ? '更换搜索词，或清空搜索查看全部凭证。' : '在凭证卡片或批量操作中点击“排除”，即可移入这里。'}</p></div>}
+          : <div className="empty drawer-empty"><div className="empty-icon"><ExclusionIcon /></div><h4>{search ? '没有匹配的凭证' : '暂无不参与巡检的凭证'}</h4><p>{search ? '更换搜索词，或清空搜索查看全部凭证。' : '在凭证卡片或批量操作中点击“排除”，即可移入这里。'}</p></div>}
       </div>
       <div className="exclusion-drawer-footer">
         <div><strong>{chosen.length ? `已选择 ${chosen.length} 个` : '恢复后回到原分类'}</strong><span>恢复参与不会自动开始巡检。</span></div>

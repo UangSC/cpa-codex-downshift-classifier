@@ -33,7 +33,6 @@ interface AppState {
   sourceDetail: string
   detail: { targetId: string; roundId: string | null } | null
   runPanelOpen: boolean
-  legendOpen: boolean
   syncing: string[]
   quotaRefreshing: string[]
   starting: boolean
@@ -61,7 +60,6 @@ interface AppState {
   openDetail: (targetId: string, roundId?: string | null) => void
   closeDetail: () => void
   setRunPanel: (open: boolean) => void
-  setLegendOpen: (open: boolean) => void
   dismissToast: (id: string) => void
   notify: (toast: Omit<Toast, 'id'>) => void
   setExclusionDrawerOpen: (open: boolean) => void
@@ -87,7 +85,7 @@ export const useStore = create<AppState>((set, get) => ({
   settingsDraft: null, settingsSaving: false, pendingTab: null, tasks: [],
   capabilities: { ...EMPTY_CAPABILITIES }, connection: 'connecting', connectionError: '', authenticated: false, lastUpdatedAt: null,
   selected: [], filters: { search: '', verdict: 'all', sort: null }, toasts: [], tab: 'overview',
-  sourceDetail: '', detail: null, runPanelOpen: false, legendOpen: false, syncing: [], quotaRefreshing: [], starting: false, mutationVersion: 0,
+  sourceDetail: '', detail: null, runPanelOpen: false, syncing: [], quotaRefreshing: [], starting: false, mutationVersion: 0,
   configChangesRevision: '', exclusionDrawerOpen: false, excluding: [],
   inspectionConfirmation: null, inspectionConfirmError: '', pendingSettingsConfirmation: null, settingsConfirmError: '',
 
@@ -172,7 +170,7 @@ export const useStore = create<AppState>((set, get) => ({
       const snapshot = await backend.loadSnapshot()
       get().hydrate(snapshot)
       set({ settingsDraft: null, pendingTab: null, pendingSettingsConfirmation: null, settingsConfirmError: '', tab: state.pendingTab ?? state.tab })
-      get().notify({ tone: 'success', title: '设置已保存', detail: '服务端已保存配置，后续巡检将使用新设置。' })
+      if (state.tab === 'settings') get().notify({ tone: 'success', title: '设置已保存', detail: '服务端已保存配置，后续巡检将使用新设置。' })
       return true
     } catch (error) {
       try { get().hydrate(await backend.loadSnapshot()) } catch { /* 读取失败时保留当前状态与草稿，下一次自动刷新会继续检查连接。 */ }
@@ -192,7 +190,7 @@ export const useStore = create<AppState>((set, get) => ({
     }))] })
   },
   openDetail: (targetId, roundId = null) => set({ detail: { targetId, roundId } }), closeDetail: () => set({ detail: null }),
-  setRunPanel: (open) => set({ runPanelOpen: open }), setLegendOpen: (open) => set({ legendOpen: open }),
+  setRunPanel: (open) => set({ runPanelOpen: open }),
   setExclusionDrawerOpen: (open) => set({ exclusionDrawerOpen: open }),
   closeInspectionConfirmation: () => { if (!get().starting) set({ inspectionConfirmation: null, inspectionConfirmError: '' }) },
   closeSettingsConfirmation: () => {

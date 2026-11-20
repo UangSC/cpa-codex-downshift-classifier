@@ -3,6 +3,7 @@ import { analyzePrefixes } from './prefix'
 import { normalizeRouting } from './routing'
 import { scheduleErrors } from './schedule'
 import { listInspectionMethods } from '../inspection'
+import { PAGINATION_FIELDS } from '../data/defaults'
 
 const GROUPS = ['prefixes', 'routing', 'inspectionMethod', 'retry', 'failureRule', 'quota', 'concurrency', 'inspectionModel', 'reasoningEffort', 'headerOverrides', 'schedule', 'pagination'] as const
 const compareValue = (settings: Settings, group: typeof GROUPS[number]) => group === 'schedule'
@@ -70,9 +71,9 @@ export function settingsErrors(settings: Settings, managedHeaders: string[] = []
   if (!listInspectionMethods().some((method) => method.id === settings.inspectionMethod)) errors.push('检测方式不可用')
   if (!Number.isInteger(settings.concurrency.maxObjects) || settings.concurrency.maxObjects < 1 || settings.concurrency.maxObjects > 9) errors.push('巡检并发数应为 1～9 的整数')
   if (!Number.isInteger(settings.failureRule.requestThreshold) || settings.failureRule.requestThreshold < 2 || settings.failureRule.requestThreshold > 5) errors.push('单轮错误请求阈值应为 2～5 的整数')
-  for (const [key, limit] of [['list', 100], ['card', 100], ['pool', 24]] as const) {
+  for (const { key, label, max } of PAGINATION_FIELDS) {
     const value = settings.pagination?.[key]
-    if (!Number.isInteger(value) || value < 1 || value > limit) errors.push(`${key === 'list' ? '列表' : key === 'card' ? '卡片' : '三栏每栏'}分页数量应为 1～${limit} 的整数`)
+    if (!Number.isInteger(value) || value < 1 || value > max) errors.push(`${label}分页数量应为 1～${max} 的整数`)
   }
   return [...errors, ...headerOverrideErrors(settings.headerOverrides, managedHeaders), ...scheduleErrors(settings.schedule)]
 }

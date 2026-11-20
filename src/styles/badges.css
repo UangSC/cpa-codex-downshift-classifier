@@ -11,6 +11,7 @@
 }
 
 .gpt-badge {
+  --gpt-badge-cycle: 4s;
   --gpt-badge-rest-shadow: 0 1px 2px rgb(10 13 20 / 20%);
   --gpt-badge-peak-shadow: 0 2px 4px rgb(10 13 20 / 28%);
   position: relative;
@@ -27,8 +28,7 @@
   border-radius: 5px;
   vertical-align: middle;
   box-shadow: var(--gpt-badge-rest-shadow);
-  animation: gpt-badge-depth var(--gpt-badge-period, 4.2s) ease-in-out var(--gpt-badge-delay, 0s) infinite;
-  animation-play-state: var(--gpt-badge-play-state, running);
+  animation: gpt-badge-depth var(--gpt-badge-cycle) ease-in-out infinite;
 }
 
 .gpt-badge > img {
@@ -62,22 +62,7 @@
     linear-gradient(116deg, transparent 70%, rgb(255 250 222 / 14%) 77%, transparent 84%);
   mask-image: linear-gradient(#000, #0006 48%, #0008 66%, #000);
   transform: translateX(-110%);
-  animation: gpt-badge-shine var(--gpt-badge-period, 4.2s) cubic-bezier(.28, .02, .32, 1) var(--gpt-badge-delay, 0s) infinite;
-  animation-play-state: var(--gpt-badge-play-state, running);
-}
-
-.gpt-badge[data-tier="500"] {
-  --gpt-badge-rest-shadow:
-    0 1px 2px rgb(10 13 20 / 20%), 0 0 3px rgb(255 188 70 / 10%);
-  --gpt-badge-peak-shadow:
-    0 2px 4px rgb(10 13 20 / 28%), 0 0 6px rgb(255 188 70 / 28%);
-}
-
-.gpt-badge[data-tier="500"]::after {
-  background:
-    linear-gradient(116deg, transparent 5%, rgb(255 191 77 / 8%) 25%, rgb(255 217 136 / 22%) 43%,
-      rgb(255 250 226 / 60%) 49%, rgb(255 218 127 / 30%) 52%, rgb(255 183 64 / 8%) 64%, transparent 73%),
-    linear-gradient(116deg, transparent 69%, rgb(255 215 120 / 22%) 77%, rgb(255 246 193 / 30%) 79%, transparent 87%);
+  animation: gpt-badge-shine var(--gpt-badge-cycle) cubic-bezier(.28, .02, .32, 1) infinite;
 }
 
 @keyframes gpt-badge-shine {
@@ -120,19 +105,23 @@
 .cred-ident .gpt-badge,
 .tile-head .gpt-badge { align-self: center; }
 
-/* 白天的黑金铭牌：细金边与上下倒角区分黑色表面，投影不改变徽章尺寸。 */
-[data-theme='light'] .gpt-badge[data-plan='500pro'] {
-  --gpt-badge-rest-shadow:
-    0 0 0 1px rgb(201 162 63 / 38%), 0 1px 1px rgb(15 19 26 / 32%),
-    0 3px 6px rgb(15 19 26 / 22%);
-  --gpt-badge-peak-shadow:
-    0 0 0 1px rgb(225 184 79 / 55%), 0 2px 2px rgb(15 19 26 / 32%),
-    0 4px 8px rgb(15 19 26 / 25%), 0 0 6px rgb(235 192 78 / 12%);
+/* 500 档保持紧凑边缘，用铭牌内的扫光体现材质。 */
+.gpt-badge[data-tier='500'] {
+  --badge-metal: #ffc566;
+  --badge-flare: #fff9e7;
+  --gpt-badge-rest-shadow: 0 1px 2px rgb(8 7 7 / 36%);
+  --gpt-badge-peak-shadow: 0 1px 3px rgb(8 7 7 / 42%), 0 0 4px color-mix(in srgb, var(--badge-metal) 24%, transparent);
 }
 
-[data-theme='light'] .gpt-badge[data-plan='500pro']::before {
-  background: linear-gradient(180deg, rgb(255 237 183 / 25%), transparent 32%, transparent 66%, rgb(0 0 0 / 32%));
-  box-shadow:
-    inset 0 1px 0 rgb(255 235 168 / 68%), inset 1px 0 0 rgb(255 225 144 / 22%),
-    inset 0 -1px 1px rgb(0 0 0 / 65%), inset -1px 0 0 rgb(0 0 0 / 32%);
+.gpt-badge[data-plan='500team'] {
+  --badge-metal: #d9bd83;
+  --badge-flare: #f1f6ff;
+}
+
+.gpt-badge[data-tier='500']::after {
+  background: linear-gradient(116deg,
+    transparent 28%, color-mix(in srgb, var(--badge-metal) 32%, transparent) 46%,
+    color-mix(in srgb, var(--badge-flare) 74%, transparent) 49%, transparent 56%,
+    color-mix(in srgb, var(--badge-metal) 28%, transparent) 67%, transparent 72%);
+  mask-image: linear-gradient(#000, #0008 55%, #000);
 }

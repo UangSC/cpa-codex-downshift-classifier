@@ -19,7 +19,7 @@ export function CredentialList({ views, runtime }: { views: CredentialView[]; ru
         <span data-list-cell="lights">近期状态</span>
         <span data-list-cell="group">当前分组</span>
         <span data-list-cell="quota">剩余额度</span>
-        <span data-list-cell="actions" style={{ textAlign: 'right' }}>操作</span>
+        <span data-list-cell="actions">操作</span>
       </div>
       {views.map((view) => {
         const selected = selection.has(view.credential.id)

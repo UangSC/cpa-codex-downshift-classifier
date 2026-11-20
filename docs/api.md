@@ -8,6 +8,7 @@
 | POST | `/checks` | 启动手动或批量巡检 |
 | GET | `/tasks?id=<taskId>` | 读取任务 |
 | POST | `/tasks/cancel?id=<taskId>` | 取消任务 |
+| POST | `/history/clear` | 清空历史巡检批次与检测证据 |
 | POST | `/sync` | 重试待同步分组 |
 | PUT | `/settings` | 保存完整设置 |
 | PUT | `/routing` | 编辑或重置凭证优先级 |
@@ -68,6 +69,10 @@
 指纹证据包括 `challengeCount`、`validSamples`、各次回答、`requestedProbability`（目标参考概率）、`probability`（最高候选概率）、`candidates`、`threshold` 与 `referenceBank`。缺少可靠概率时字段为 `null`；成功题不重跑，失败尝试计入统一重试预算。
 
 `failureRule.requestThreshold` 支持 2～5，默认 3；`failureRule.windowRounds` 为连续失败轮数门槛。`concurrency.maxObjects` 支持 1～9，默认 4。尝试证据增加 `finishedAt` 和可选 `localState`，任务条目增加 `lastStatus` 与 `retryAt`；历史中的 `waitMs` 为该次请求前实际完成的计划等待。等待取配置退避、宿主传递的 `Retry-After` 和官方 `next_retry_after` 冷却期限中最长者，超过 120 秒则停止本轮重试。当前原生 RPC 错误信封不含响应头，错误后通过官方运行态读取冷却期限；冷却到期后再请求，不改写宿主冷却状态。已有真实异常后的本地冷却不冒充新的上游 429，也不抹去真实异常证据。
+
+## 清空历史巡检
+
+`POST /history/clear` 要求明确提交 `{"confirm":true}`，缺少确认返回 400，仍有巡检在运行或收尾时返回 409。成功返回 `{"ok":true}`。历史批次、结论和检测依据会永久删除，历史统计与跨轮异常计数从后续巡检重新累积。已生效的凭证分组、路由及插件设置继续使用。
 
 ## 刷新额度
 

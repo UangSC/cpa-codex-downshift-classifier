@@ -2,6 +2,13 @@ import type { Settings } from '../types'
 import { DEFAULT_ROUTING } from '../lib/routing'
 import { DEFAULT_WINDOWS } from '../lib/schedule'
 
+export const PAGINATION_FIELDS = [
+  { key: 'list', label: '列表', max: 100 },
+  { key: 'card', label: '卡片', max: 100 },
+  { key: 'pool', label: '三栏每栏', max: 24 },
+  { key: 'statistics', label: '账号统计', max: 4 },
+] as const
+
 export const DEFAULT_SETTINGS: Settings = {
   prefixes: { normal: '', downshift: 'downshift' },
   routing: DEFAULT_ROUTING,
@@ -14,6 +21,6 @@ export const DEFAULT_SETTINGS: Settings = {
   reasoningEffort: 'low',
   headerOverrides: {},
   layout: 'pool', maskNames: false, theme: 'light',
-  pagination: { list: 10, card: 8, pool: 4 },
+  pagination: { list: 10, card: 8, pool: 4, statistics: 4 },
   schedule: { enabled: false, mode: 'interval', intervalMinutes: 60, dailyTime: '09:00', windows: DEFAULT_WINDOWS, nextRunAt: null },
 }

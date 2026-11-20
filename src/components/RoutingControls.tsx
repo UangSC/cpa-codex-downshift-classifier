@@ -64,7 +64,7 @@ function RoutingStepper({ value, label, onChange, disabled, field = 'priority' }
   )
 }
 
-export function RoutingControls({ values, onChange, label, showLabels = false, showWeight = true, showPriority = true, inheritedWeight, children, disabled = false }: {
+export function RoutingControls({ values, onChange, label, showLabels = false, showWeight = true, showPriority = true, inheritedWeight, disabled = false }: {
   values: RoutingValues
   onChange: (values: RoutingValues) => void
   label: string
@@ -72,7 +72,6 @@ export function RoutingControls({ values, onChange, label, showLabels = false, s
   showPriority?: boolean
   showWeight?: boolean
   inheritedWeight?: number | null
-  children?: React.ReactNode
   disabled?: boolean
 }) {
   const saving = useStore((state) => state.settingsSaving)
@@ -92,26 +91,23 @@ export function RoutingControls({ values, onChange, label, showLabels = false, s
           <strong>{currentWeight ?? '未知'}</strong>
         </output>}
       </div>}
-      {children}
     </div>
   )
 }
 
-export function CredentialRouting({ credential, showLabels = false, field }: { credential: Credential; showLabels?: boolean; field?: keyof RoutingValues }) {
+export function CredentialRouting({ credential, showLabels = false, field }: {
+  credential: Credential
+  showLabels?: boolean
+  field?: keyof RoutingValues
+}) {
   const routing = useStore((state) => state.settings.routing)
   const disabled = useStore((state) => state.connection !== 'connected' || state.syncing.includes(credential.id))
-  const overridden = !!routing.overrides[credential.id]
   return (
     <RoutingControls showPriority={field !== 'weight'} showWeight={field !== 'priority'} values={routingFor(credential, routing)} inheritedWeight={credential.routing?.weight ?? null} label={credential.name} showLabels={showLabels} disabled={disabled}
       onChange={(values) => {
         const current = routingFor(credential, routing)
         if (values.weight !== current.weight) void saveCredentialRouting({ credentialId: credential.id, weight: values.weight })
         else if (values.priority !== current.priority) void saveCredentialRouting({ credentialId: credential.id, priority: values.priority })
-      }}>
-      {field !== 'weight' && <button type="button" className="routing-reset" disabled={disabled || !overridden} aria-label={`恢复 ${credential.name} 的分组默认优先级`}
-        onClick={() => {
-          void saveCredentialRouting({ credentialId: credential.id, reset: true })
-        }}>↺</button>}
-    </RoutingControls>
+      }} />
   )
 }

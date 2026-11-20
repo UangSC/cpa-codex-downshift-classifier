@@ -191,8 +191,7 @@ body {
 }
 
 /* Softer section surfaces on the pastel canvas. */
-.page-head .sub,
-.scope-note {
+.page-head .sub {
   color: color-mix(in srgb, var(--text-3) 92%, var(--text-2));
 }
 

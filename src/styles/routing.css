@@ -10,8 +10,6 @@
 .routing-stepper button:hover:not(:disabled) { background: var(--surface-3); color: var(--accent); }
 .routing-stepper button:disabled { opacity: .3; cursor: default; }
 .routing-stepper:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-.routing-reset { display: inline-grid; place-items: center; width: 18px; height: 25px; flex: none; border: 0; background: transparent; color: var(--text-3); cursor: pointer; padding: 0; font-size: 15px; line-height: 1; }
-.routing-reset:disabled { opacity: .25; cursor: default; }
 .routing-inherited { display: flex; align-items: center; justify-content: center; gap: 5px; width: 80px; height: 25px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); color: var(--text-2); font: 11px var(--mono); font-variant-numeric: tabular-nums; }
 .routing-inherited strong { font: inherit; }
 .routing-inherited span { font: 9px var(--font); color: var(--text-3); }
@@ -20,7 +18,6 @@
 .with-labels { gap: 5px; }
 .with-labels .routing-stepper { grid-template-columns: 15px 30px 15px; height: 23px; }
 .with-labels .routing-stepper input { font-size: 10px; }
-.with-labels .routing-reset { width: 14px; height: 23px; align-self: end; }
 .tile-routing, .pool-card-routing { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 39px; }
 .tile-routing .tile-gate, .pool-card-routing .tile-gate { font-size: 10px; color: var(--warn); }
 .settings > .panel:has(.group-routing-list) { grid-column: 1 / -1; }

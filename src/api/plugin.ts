@@ -39,6 +39,7 @@ export function createPluginBackend(): Backend {
     startChecks: (body: StartChecksRequest) => request<StartChecksResponse>(ENDPOINTS.checks, { method: 'POST', body: JSON.stringify(body) }),
     loadTask: (id: string) => request<InspectionTask>(ENDPOINTS.task(id)),
     cancelTask: async (id: string) => { await request(ENDPOINTS.cancelTask(id), { method: 'POST' }) },
+    clearHistory: async () => { await request(ENDPOINTS.clearHistory, { method: 'POST', body: JSON.stringify({ confirm: true }) }) },
     sync: (body: SyncRequest) => request<SyncResponse>(ENDPOINTS.sync, { method: 'POST', body: JSON.stringify(body) }),
     saveSettings: async (body: Settings, acknowledgeScheduledConfigChanges = false) => { await request(ENDPOINTS.settings, { method: 'PUT', body: JSON.stringify({ ...body, ...(acknowledgeScheduledConfigChanges ? { acknowledgeScheduledConfigChanges: true } : {}) }) }) },
     setExclusions: async (body: ExclusionRequest) => { await request(ENDPOINTS.exclusions, { method: 'POST', body: JSON.stringify(body) }) },

@@ -4,6 +4,8 @@ import { lightSequence, roundTone } from '../lib/derive'
 import { countRetries, REASON_LABEL, testLabel } from '../lib/rules'
 import { Dot, HoverCard } from './ui'
 
+const LIGHT_TOOLTIP_DELAY_MS = 120
+
 const OUTCOME_LABEL = {
   normal: '正常',
   downshift: '降档',
@@ -24,7 +26,7 @@ const TONE_TITLE: Record<string, string> = {
   empty: '本轮未完成',
 }
 
-function RoundTip({ round, onOpen }: { round: InspectionRound; onOpen: () => void }) {
+function RoundTip({ round }: { round: InspectionRound }) {
   const attempts = round.evidence.attempts.length
   const retries = countRetries(round.evidence.attempts)
   const tone = roundTone(round)
@@ -78,9 +80,7 @@ function RoundTip({ round, onOpen }: { round: InspectionRound; onOpen: () => voi
               : '分组未变更'}
         </span>
       </div>
-      <button type="button" className="tip-action" onClick={onOpen}>
-        查看完整依据 →
-      </button>
+      <strong className="tip-detail-hint">点击近况灯查看详情</strong>
     </>
   )
 }
@@ -91,10 +91,8 @@ function RoundTip({ round, onOpen }: { round: InspectionRound; onOpen: () => voi
  * A credential with no rounds yet still shows one dashed placeholder slot, so the column
  * keeps its width/height and the surrounding layout never collapses.
  *
- * Every light shows its round on hover/focus. The problem lights (yellow = uncertain,
- * red = downshift) can be clicked to pin the bubble: it then stays on screen, and once the
- * pointer leaves it waits about a second before fading out — moving back in cancels it.
- * Green/empty lights keep opening the full evidence sheet on click.
+ * Every recorded round shows a brief tooltip on hover or focus and opens its
+ * evidence sheet when the light is activated.
  */
 export function StatusLights({
   target,
@@ -111,7 +109,7 @@ export function StatusLights({
     // lives in a hover bubble instead of inline text pushing the strip off-centre.
     return (
       <div className="lights lights-is-empty" role="group" aria-label="近期检测状态：暂无记录">
-        <HoverCard showDelay={300}
+        <HoverCard showDelay={LIGHT_TOOLTIP_DELAY_MS} fadeOnHide={false}
           content={
             <>
               <div className="tip-title">暂无检测记录</div>
@@ -141,21 +139,17 @@ export function StatusLights({
     >
       {rounds.map((round) => {
         const tone = roundTone(round)
-        const problem = tone === 'uncertain' || tone === 'downshift'
         return (
-          <HoverCard showDelay={300}
+          <HoverCard showDelay={LIGHT_TOOLTIP_DELAY_MS} fadeOnHide={false}
             key={round.id}
-            pinOnClick={problem}
-            hideDelay={problem ? 150 : 0}
-            content={<RoundTip round={round} onOpen={() => onOpen(round.id)} />}
+            content={<RoundTip round={round} />}
           >
             <button
               type="button"
-              className={`light light-${tone} ${problem ? 'is-problem' : ''}`}
+              className={`light light-${tone}`}
               onClick={(event) => {
-                // Problem lights pin their bubble on click; the tip carries the link to
-                // the full evidence sheet so a single click has one clear meaning.
-                if (!problem) { event.stopPropagation(); onOpen(round.id) }
+                event.stopPropagation()
+                onOpen(round.id)
               }}
               aria-label={`${formatRelative(round.finishedAt)}，${OUTCOME_LABEL[round.outcome]}，${
                 REASON_LABEL[round.reasonCode]

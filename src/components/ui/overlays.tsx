@@ -211,7 +211,6 @@ export function Drawer({
   children,
   head,
   className,
-  backdropClassName,
   onEscape,
 }: {
   open: boolean
@@ -221,21 +220,34 @@ export function Drawer({
   children: ReactNode
   head?: ReactNode
   className?: string
-  backdropClassName?: string
   onEscape?: (event: KeyboardEvent) => boolean
 }) {
-  const previousFocus = useRef<HTMLElement | null>(null)
+  const titleId = useId()
+  const descriptionId = useId()
+  const [present, setPresent] = useState(open)
   const ref = useRef<HTMLElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const escapeRef = useRef(onEscape)
   escapeRef.current = onEscape
+
+  useEffect(() => {
+    if (open) {
+      setPresent(true)
+      return
+    }
+    if (!present) return
+    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 280
+    const timer = window.setTimeout(() => setPresent(false), delay)
+    return () => window.clearTimeout(timer)
+  }, [open, present])
+
   useEffect(() => {
     if (!open) return
     const node = ref.current
     if (!node) return
     const token = Symbol('drawer')
-    previousFocus.current = document.activeElement as HTMLElement | null
+    const previousFocus = document.activeElement as HTMLElement | null
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || isCompositionEvent(e)) return
       if (e.key === 'Escape') {
@@ -256,30 +268,33 @@ export function Drawer({
       document.removeEventListener('keydown', onKey)
       popOverlay(token)
       unlockBodyScroll()
-      previousFocus.current?.focus?.({ preventScroll: true })
+      previousFocus?.focus?.({ preventScroll: true })
     }
   }, [open])
 
-  if (!open) return null
+  if (!open && !present) return null
 
   return createPortal(
     <>
-      <div className={`drawer-backdrop ${backdropClassName ?? ''}`} onMouseDown={onClose} />
+      <div className="drawer-backdrop" data-open={open} aria-hidden="true" onMouseDown={onClose} />
       <aside
         className={`drawer ${className ?? ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={typeof title === 'string' ? title : '巡检面板'}
+        data-open={open}
+        role={open ? 'dialog' : undefined}
+        aria-modal={open || undefined}
+        aria-labelledby={titleId}
+        aria-describedby={sub ? descriptionId : undefined}
+        inert={!open}
         ref={ref}
         tabIndex={-1}
       >
         <div className="drawer-head">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h3>{title}</h3>
-            {sub && <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{sub}</div>}
+          <div className="drawer-heading">
+            <h3 id={titleId}>{title}</h3>
+            {sub && <div className="drawer-description" id={descriptionId}>{sub}</div>}
           </div>
           {head}
-          <button className="icon-btn" onClick={onClose} aria-label="关闭面板">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="关闭面板">
             <Icon.Close />
           </button>
         </div>
