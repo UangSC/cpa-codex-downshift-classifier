@@ -51,6 +51,20 @@ pnpm install --frozen-lockfile
 
 `api_base` 使用本机回环 HTTP 地址。在本机配置管理密钥，可通过 `state_dir` 指定插件的持久化目录。
 
+### 使用 AI 助手快速安装
+
+将以下提示词复制给能够访问目标机器终端的 AI 助手。如有指定的 CPA 实例、插件版本或源码分支，可在提示词末尾补充。
+
+```text
+请协助我在现有的 CLIProxyAPI（CPA）实例中安装 Codex 降档检测与分类插件。
+项目仓库为 https://github.com/UangSC/cpa-codex-downshift-classifier 。
+
+1. 识别目标 CPA 实例、配置路径、运行平台和进程架构，确认宿主支持原生插件 C ABI 1 和管理接口 RPC Schema 6。如果存在多个实例且无法确定目标，请让我选择。
+2. 优先使用仓库 Releases 中与目标平台、架构和版本匹配的安装包，校验 checksums.txt 中的 SHA-256。若没有匹配的公开安装包，按仓库的 docs/development.md 从目标版本或分支构建，并核对 package.json、Go 注册版本与构建产物。
+3. 安装前备份目标实例的配置和旧插件。Windows 本机可按文档使用 scripts/deploy-local.ps1，Linux 使用目标 CPA 的插件加载器与配置。管理密钥使用本机已有配置或由我在本机提供，请避免在对话或日志中输出密钥。
+4. 安装后确认插件 cpa-codex-downshift-classifier 已在目标 CPA 中注册、实际加载版本正确，并给出可打开的管理页链接、验证结果和备份位置。
+```
+
 ## 使用指南
 
 1. 在「概览」选择糖果题或模型指纹，查看选定的检测模型、分组模式和额度。可切换列表、卡片和三栏布局。
