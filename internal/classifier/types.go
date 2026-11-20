@@ -22,11 +22,11 @@ type TimeWindow struct {
 type Pagination struct {
 	List       int `json:"list"`
 	Card       int `json:"card"`
-	Pool       int `json:"pool"`
 	Statistics int `json:"statistics"`
 }
 
 const maxStatisticsPageSize = 4
+const defaultLayout = "card"
 
 type Schedule struct {
 	Enabled         bool         `json:"enabled"`
@@ -79,7 +79,7 @@ func DefaultSettings() Settings {
 	s.InspectionModel = "gpt-6.1-sol"
 	s.ReasoningEffort = "low"
 	s.HeaderOverrides = map[string]string{}
-	s.Pagination = Pagination{List: 10, Card: 8, Pool: 4, Statistics: maxStatisticsPageSize}
+	s.Pagination = Pagination{List: 10, Card: 8, Statistics: maxStatisticsPageSize}
 	s.Retry.MaxRetries = 2
 	s.Retry.BaseDelayMs = 5000
 	s.Retry.BackoffFactor = 2
@@ -88,7 +88,7 @@ func DefaultSettings() Settings {
 	s.Quota.MinRemainingPercent = 15
 	s.Quota.UnknownPolicy = "check"
 	s.Concurrency.MaxObjects = 4
-	s.Layout = "pool"
+	s.Layout = defaultLayout
 	s.Theme = "light"
 	s.Schedule = Schedule{Mode: "interval", IntervalMinutes: 60, DailyTime: "09:00", Windows: []TimeWindow{{"daytime", 540, 1080}}}
 	return s
@@ -115,6 +115,7 @@ type Credential struct {
 	Group              *string       `json:"group"`
 	Sync               Sync          `json:"sync"`
 	Routing            RoutingValues `json:"routing"`
+	Disabled           bool          `json:"disabled,omitempty"`
 	Unavailable        bool          `json:"unavailable,omitempty"`
 	Prefix             string        `json:"prefix"`
 	InspectionExcluded bool          `json:"inspectionExcluded"`

@@ -61,14 +61,21 @@ func (s *Service) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			result, err = s.RefreshQuotas(r.Context(), q)
 		}
 	case path == "/settings" && r.Method == "PUT":
-		var q Settings
-		// 旧客户端提交全量设置时可能缺少新字段，保留已配置的统计分页数量。
+		var q struct {
+			Settings
+			Pagination struct {
+				Pagination
+				LegacyPool int `json:"pool"`
+			} `json:"pagination"`
+		}
+		// 接受旧客户端的分页字段，缺省的统计分页沿用当前值。
 		s.mu.Lock()
 		q.Pagination.Statistics = s.state.Settings.Pagination.Statistics
 		s.mu.Unlock()
 		err = decode(w, r, &q)
 		if err == nil {
-			err = s.SaveSettings(r.Context(), q)
+			q.Settings.Pagination = q.Pagination.Pagination
+			err = s.SaveSettings(r.Context(), q.Settings)
 		}
 	case path == "/routing" && r.Method == "PUT":
 		var q RoutingRequest

@@ -69,12 +69,17 @@ interface AppState {
 
 const PREFERENCES_KEY = 'cpa-downshift:preferences:v1'
 type Preferences = Pick<Settings, 'theme' | 'layout' | 'maskNames'>
+function isCredentialLayout(layout: unknown): layout is Settings['layout'] {
+  return layout === 'list' || layout === 'card'
+}
+
 function preferences(): Partial<Preferences> {
   try {
-    const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) ?? localStorage.getItem('cpa-downshift:settings:v2') ?? '{}') as Partial<Preferences>
+    const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) ?? localStorage.getItem('cpa-downshift:settings:v2') ?? '{}') as Partial<Omit<Preferences, 'layout'>> & { layout?: unknown }
+    const layout = saved.layout === 'pool' ? DEFAULT_SETTINGS.layout : saved.layout
     return {
       ...(saved.theme === 'dark' || saved.theme === 'light' ? { theme: saved.theme } : {}),
-      ...(['pool', 'list', 'card'].includes(saved.layout ?? '') ? { layout: saved.layout } : {}),
+      ...(isCredentialLayout(layout) ? { layout } : {}),
       ...(typeof saved.maskNames === 'boolean' ? { maskNames: saved.maskNames } : {}),
     }
   } catch { return {} }
@@ -101,7 +106,12 @@ export const useStore = create<AppState>((set, get) => ({
       ...snapshot.settings, reasoningEffort: snapshot.settings.reasoningEffort ?? DEFAULT_SETTINGS.reasoningEffort,
       failureRule: { ...DEFAULT_SETTINGS.failureRule, ...snapshot.settings.failureRule },
       headerOverrides: snapshot.settings.headerOverrides ?? {},
-      pagination: { ...DEFAULT_SETTINGS.pagination, ...snapshot.settings.pagination },
+      layout: isCredentialLayout(snapshot.settings.layout) ? snapshot.settings.layout : DEFAULT_SETTINGS.layout,
+      pagination: {
+        list: snapshot.settings.pagination?.list ?? DEFAULT_SETTINGS.pagination.list,
+        card: snapshot.settings.pagination?.card ?? DEFAULT_SETTINGS.pagination.card,
+        statistics: snapshot.settings.pagination?.statistics ?? DEFAULT_SETTINGS.pagination.statistics,
+      },
       routing: normalizeRouting(snapshot.settings.routing),
       schedule: { ...DEFAULT_SETTINGS.schedule, ...snapshot.settings.schedule, windows: snapshot.settings.schedule?.windows ?? [] },
       ...preferences(),

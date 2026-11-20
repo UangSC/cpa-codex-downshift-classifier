@@ -11,6 +11,13 @@ import (
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/fingerprint"
 )
 
+func migrateLayout(layout string) string {
+	if layout == "pool" {
+		return defaultLayout
+	}
+	return layout
+}
+
 func validateSettings(v Settings) error {
 	if v.Routing.Mode != "prefix" && v.Routing.Mode != "priority" {
 		return bad("分组策略无效")
@@ -27,8 +34,8 @@ func validateSettings(v Settings) error {
 	if v.ReasoningEffort != "low" && v.ReasoningEffort != "medium" && v.ReasoningEffort != "high" {
 		return bad("思考程度仅支持低 low、中 medium、高 high")
 	}
-	if v.Pagination.List < 1 || v.Pagination.List > 100 || v.Pagination.Card < 1 || v.Pagination.Card > 100 || v.Pagination.Pool < 1 || v.Pagination.Pool > 24 {
-		return bad("分页数量无效：列表/卡片 1～100，三栏每栏 1～24")
+	if v.Pagination.List < 1 || v.Pagination.List > 100 || v.Pagination.Card < 1 || v.Pagination.Card > 100 {
+		return bad("列表和卡片的分页数量必须为 1～100")
 	}
 	if v.Pagination.Statistics < 1 || v.Pagination.Statistics > maxStatisticsPageSize {
 		return bad("账号统计分页数量必须为 1～4")
@@ -77,7 +84,7 @@ func validateSettings(v Settings) error {
 			}
 		}
 	}
-	if v.Layout != "list" && v.Layout != "card" && v.Layout != "pool" {
+	if v.Layout != "list" && v.Layout != "card" {
 		return bad("布局无效")
 	}
 	if v.Theme != "light" && v.Theme != "dark" {
@@ -108,6 +115,7 @@ func weightsChanged(a, b RoutingSettings) bool {
 func (s *Service) SaveSettings(ctx context.Context, v Settings) error {
 	s.mutation.Lock()
 	defer s.mutation.Unlock()
+	v.Layout = migrateLayout(v.Layout)
 	if err := validateSettings(v); err != nil {
 		return err
 	}
@@ -188,7 +196,7 @@ func (s *Service) SaveSettings(ctx context.Context, v Settings) error {
 	for _, c := range live {
 		s.mu.Lock()
 		r := s.recordLocked(c.ID)
-		if r.InspectionExcluded {
+		if excludedFromInspection(c, r) {
 			s.mu.Unlock()
 			continue
 		}

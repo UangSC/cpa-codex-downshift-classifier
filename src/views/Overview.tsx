@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/store'
 import { evaluateEligibility, refreshCredentialsQuota, resyncCredential, saveInspectionOptions, startInspection } from '../store/actions'
 import { buildViews, sortViews, type CredentialView } from '../lib/derive'
-import { CredentialGrid, CredentialList, CredentialPools, CredentialPager, credentialPage } from '../components/Credentials'
+import { CredentialGrid, CredentialList, CredentialPager, credentialPage } from '../components/Credentials'
 import { Dot, Icon, NameMaskToggle, useNow } from '../components/ui'
 import type { VerdictFilter } from '../store/store'
 import { activeInspectionCredentialIds, setCredentialExclusions } from '../store/exclusions'
@@ -21,7 +21,6 @@ const FILTER_LABEL: Record<VerdictFilter, string> = {
 const LAYOUTS = [
   { value: 'list', label: '列表' },
   { value: 'card', label: '卡片' },
-  { value: 'pool', label: '三栏' },
 ] as const
 
 function InspectionConcurrency({ value, disabled }: { value: number; disabled: boolean }) {
@@ -76,7 +75,9 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   const state = useStore()
   const now = useNow(30_000)
   const { settings, targets, credentials, filters, selected } = state
-  const participating = useMemo(() => credentials.filter((credential) => !credential.inspectionExcluded || state.excluding.includes(credential.id)), [credentials, state.excluding])
+  const participating = useMemo(() => credentials.filter((credential) =>
+    !credential.disabled && (!credential.inspectionExcluded || state.excluding.includes(credential.id))
+  ), [credentials, state.excluding])
   const excludedCount = credentials.filter((credential) => credential.inspectionExcluded).length
   const participatingSelected = selected.filter((id) => participating.some((credential) => credential.id === id))
 
@@ -140,10 +141,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   const paginationKey = JSON.stringify([settings.layout, pageSize, filters.search, filters.verdict, filters.sort, settings.inspectionModel])
   const [position, setPosition] = useState({ key: paginationKey, page: 0 })
   const currentPage = credentialPage(filteredViews, position.key === paginationKey ? position.page : 0, pageSize)
-  const poolResetKey = JSON.stringify([filters.search, filters.verdict, filters.sort, settings.inspectionModel, settings.pagination?.pool])
-  const [poolPage, setPoolPage] = useState<{ key: string; ids: string[] }>({ key: poolResetKey, ids: [] })
-  const capturePoolPage = useCallback((ids: string[]) => setPoolPage({ key: poolResetKey, ids }), [poolResetKey])
-  const visibleQuotaIds = settings.layout === 'pool' ? (poolPage.key === poolResetKey ? poolPage.ids : []) : currentPage.items.map((view) => view.credential.id)
+  const visibleQuotaIds = currentPage.items.map((view) => view.credential.id)
   const optionsDisabled = state.connection !== 'connected' || state.settingsSaving || state.starting
     || Boolean(runningTask || state.settingsDraft || state.inspectionConfirmation || state.pendingSettingsConfirmation)
   useEffect(() => {
@@ -366,14 +364,12 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         </div>
       ) : (
         <div className="view-enter" key={settings.layout}>
-          {settings.layout === 'pool' ? (
-            <CredentialPools views={filteredViews} runtime={runtime} resetKey={poolResetKey} onVisibleCredentialIdsChange={capturePoolPage} />
-          ) : settings.layout === 'card' ? (
+          {settings.layout === 'card' ? (
             <CredentialGrid views={currentPage.items} runtime={runtime} />
           ) : (
             <CredentialList views={currentPage.items} runtime={runtime} />
           )}
-          {settings.layout !== 'pool' && <CredentialPager label={settings.layout === 'list' ? '列表' : '卡片'} page={currentPage.page} pages={currentPage.pages} total={currentPage.total} pageSize={currentPage.size} onPage={(page) => setPosition({ key: paginationKey, page })} />}
+          <CredentialPager label={settings.layout === 'list' ? '列表' : '卡片'} page={currentPage.page} pages={currentPage.pages} total={currentPage.total} pageSize={currentPage.size} onPage={(page) => setPosition({ key: paginationKey, page })} />
         </div>
       )}
 

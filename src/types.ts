@@ -213,6 +213,7 @@ export interface Credential {
   /** `busy` means the credential currently serves live sessions; checks wait for it. */
   availability: 'idle' | 'busy' | 'unknown'
   /** CPA 官方报告的暂不可用或冷却，不等同于令牌失效。 */
+  disabled?: boolean
   unavailable?: boolean
   busySessions: number
   quota: Quota
@@ -349,9 +350,9 @@ export interface Settings {
   /** 真实巡检请求使用的思考程度，只允许这三档。 */
   reasoningEffort: ReasoningEffort
   headerOverrides: Record<string, string>
-  pagination: { list: number; card: number; pool: number; statistics: number }
+  pagination: { list: number; card: number; statistics: number }
   /** Presentation preference for the credential list. */
-  layout: 'list' | 'card' | 'pool'
+  layout: 'list' | 'card'
   /** Blur credential identities (the eye button in the overview toolbar). */
   maskNames: boolean
   schedule: ScheduleSettings

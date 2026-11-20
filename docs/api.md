@@ -41,6 +41,8 @@
 
 `PUT /settings` 保存完整设置对象，草稿应基于当前快照。配置包括前缀、写入模式、分组优先级、检测模型、重试、额度策略、并发、思考程度、头覆盖、定时和界面偏好。
 
+`layout` 支持 `list` 和 `card`，默认使用 `card`。`pagination` 包含 `list`、`card`、`statistics`。旧设置中的 `layout: "pool"` 会转为 `card`，旧分页字段 `pagination.pool` 会被忽略。
+
 开启或改变影响定时执行的设置时，本次提交需临时附带 `acknowledgeScheduledConfigChanges: true`；确认字段不作为页面普通设置保存。后台保存授权指纹，旧授权不能覆盖新的检测和写入规则。
 
 `PUT /routing` 接收 `{credentialId, priority?, weight?, reset?}`；`POST /sync` 接收 `{credentialId}`。权重默认读取 CPA 当前值，加权轮询下可显式提交 0～9999 的单凭证权重。重置仅恢复分组默认优先级。
@@ -57,6 +59,8 @@
 ```
 
 只保存参与状态，不禁用 CPA 凭证、不改写路由和历史。运行中尚未完成的凭证不能移入排除池。恢复参与不会自动启动巡检。
+
+CPA 已停用的凭证自动进入不参与巡检池。快照中的 `disabled: true` 表示 CPA 停用，`inspectionExcluded` 表示实际是否排除。重新启用后，只有此前手动排除过的凭证仍留在池中。对停用凭证提交恢复会返回 409。
 
 ## 快照与判定
 

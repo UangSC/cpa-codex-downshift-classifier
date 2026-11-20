@@ -289,7 +289,7 @@ export function SettingsView() {
 
         <ScheduleEditor />
 
-        <Panel title="分页数量" desc="分别设置列表、卡片、三栏和账号统计每页显示的凭证数量。">
+        <Panel title="分页数量" desc="分别设置列表、卡片和账号统计每页显示的凭证数量。">
           <div className="pagination-settings">
             {PAGINATION_FIELDS.map(({ key, label, max }) => <div className="field" key={key}>
               <label className="field-label" htmlFor={`pagination-${key}`}>{label}每页</label>
@@ -304,7 +304,7 @@ export function SettingsView() {
               </div>
             </div>)}
           </div>
-          <p className="pagination-setting-hint">默认列表 10 个、卡片 8 个、三栏每栏 4 个、账号统计 4 个。三栏各自翻页，「巡检全部」包含所有符合条件的凭证。</p>
+          <p className="pagination-setting-hint">默认列表 10 个、卡片 8 个、账号统计 4 个。「巡检全部」包含所有符合条件的凭证。</p>
         </Panel>
 
         <Panel title="数据来源">

@@ -183,45 +183,24 @@
   min-height: 80px;
 }
 
-/* ------------------------------------------------- card / pool footers */
+/* ------------------------------------------------- card footers */
 
-.cred-tile .tile-foot,
-.pool-card-foot {
+.cred-tile .tile-foot {
   display: flex;
   align-items: center;
   gap: 6px;
   min-height: 36px;
 }
 
-.cred-tile .tile-foot .status-pill,
-.pool-card-foot .status-pill {
+.cred-tile .tile-foot .status-pill {
   flex: none;
 }
 
-.cred-tile .tile-foot .cred-actions,
-.pool-card-foot .cred-actions {
+.cred-tile .tile-foot .cred-actions {
   margin-left: auto;
 }
-
-.pool-card-foot .btn {
-  height: 24px;
-  padding: 0 8px;
-  font-size: 11px;
-}
-
-.pool-card-foot .btn svg {
-  width: 11px;
-  height: 11px;
-  margin-right: 4px;
-}
-
-.pool-card-foot .status-pill {
-  height: 19px;
-  padding: 0 7px;
-  font-size: 11px;
-}
 /* ==========================================================================
-   Placeholder light slot, uniform pool cards, bigger eye icon
+   Placeholder light slot and bigger eye icon
    ========================================================================== */
 
 /* "No rounds yet" keeps one dashed slot so the strip keeps its footprint. */
@@ -247,60 +226,8 @@
 }
 
 /* Cards: reserve the light row even when empty so heights match. */
-.tile-lights,
-.pool-card-lights {
+.tile-lights {
   min-height: 22px;
-}
-
-/* ------------------------------------------------------------------ pools */
-/*
- * Every pool card is the same size: a fixed card height with its inner rows
- * pinned to that height, so a card with a short reason or no history does not
- * shrink next to its neighbours.
- */
-.pool-body {
-  grid-auto-rows: 1fr;
-  align-items: stretch;
-}
-
-.pool-card {
-  height: 100%;
-  min-height: 176px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.pool-card-top,
-.pool-card-lights {
-  flex: none;
-}
-
-.pool-card-group {
-  flex: none;
-  min-height: 20px;
-}
-
-.pool-card-quota {
-  flex: none;
-}
-
-.pool-card-foot {
-  margin-top: auto;
-  flex: none;
-}
-
-/* Keep the three pools aligned even when one has fewer cards. */
-.pools {
-  align-items: stretch;
-}
-
-.pool {
-  min-height: 100%;
-}
-
-.pool-body {
-  flex: 1;
 }
 
 /* ------------------------------------------------------------- eye button */
@@ -333,20 +260,7 @@
     grid-template-columns: 28px minmax(0, 1fr) 100px 150px 168px 250px 190px;
   }
 }
-/* ---------------------------------------- fixes: rows, icons, pool cards */
-
-/* Pool cards: keep a uniform 176px height; never stretch a lone row to fill. */
-.pool-body {
-  grid-auto-rows: minmax(176px, auto);
-  align-content: start;
-  align-items: stretch;
-  flex: 1;
-}
-
-.pool-card {
-  height: 176px;
-  min-height: 176px;
-}
+/* ---------------------------------------- row and icon refinements */
 
 /* Eye button: the SVG is a flex item, so it must not shrink. */
 .toolbar .eye-btn {
@@ -361,8 +275,7 @@
 }
 
 /* Action icons keep their slot too. */
-.cred-actions .btn svg,
-.pool-card-foot .btn svg {
+.cred-actions .btn svg {
   flex: none;
 }
 
@@ -470,8 +383,6 @@
 :root body .stat,
 :root body .cred-table,
 :root body .cred-tile,
-:root body .pool,
-:root body .pool-card,
 :root body .panel,
 :root body .history-item,
 :root body .task,
@@ -483,21 +394,13 @@
 
 :root body .stat:hover,
 :root body .cred-tile:hover,
-:root body .pool-card:hover,
 :root body .history-item:hover {
   box-shadow: var(--card-hover-shadow), var(--card-edge-shadow);
 }
 
 :root body .stat[aria-pressed='true'],
-:root body .cred-tile.is-selected,
-:root body .pool-card.is-selected {
+:root body .cred-tile.is-selected {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent), var(--card-hover-shadow), var(--card-edge-shadow);
-}
-
-/* Empty pools retain the same column surface without an opaque white placeholder. */
-.pool-empty {
-  background: transparent;
-  box-shadow: none;
 }
 
 .inspection-method-switch { flex: 0 0 auto; }

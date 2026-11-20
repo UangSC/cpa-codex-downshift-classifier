@@ -99,9 +99,6 @@
 
 .gpt-badge-fallback.is-sm { font-size: 10px; }
 
-.pool-card-top .gpt-badge,
-.pool-card-top .gpt-badge-fallback { margin-left: auto; }
-
 .cred-ident .gpt-badge,
 .tile-head .gpt-badge { align-self: center; }
 

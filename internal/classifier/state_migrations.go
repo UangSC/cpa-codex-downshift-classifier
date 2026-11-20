@@ -53,10 +53,8 @@ func (s *Service) loadState() error {
 		if persisted.Settings.Pagination.Card == 0 {
 			persisted.Settings.Pagination.Card = defaults.Pagination.Card
 		}
-		if persisted.Settings.Pagination.Pool == 0 {
-			persisted.Settings.Pagination.Pool = defaults.Pagination.Pool
-		}
 	}
+	persisted.Settings.Layout = migrateLayout(persisted.Settings.Layout)
 	if err := validateSettings(persisted.Settings); err != nil {
 		return fmt.Errorf("持久化设置无效：%w", err)
 	}
