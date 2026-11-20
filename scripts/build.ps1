@@ -1,18 +1,32 @@
 param(
     [string]$GoExe = $env:CPA_DOWNSHIFT_GO,
-    [string]$Compiler = $env:CC
+    [string]$Compiler = $env:CC,
+    [ValidateSet('amd64', 'arm64')][string]$Architecture
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
-$taskVersion = (Get-Content -LiteralPath (Join-Path $taskRoot 'package.json') -Raw | ConvertFrom-Json).version
+$taskPackage = Get-Content -LiteralPath (Join-Path $taskRoot 'package.json') -Raw | ConvertFrom-Json
+$taskVersion = $taskPackage.version
 if ($taskVersion -notmatch '^\d+\.\d+\.\d+$') { throw '插件版本必须是标准三段版本号。' }
+$taskSource = Get-Content -LiteralPath (Join-Path $taskRoot 'cmd/downshift/plugin.go') -Raw -Encoding utf8
+foreach ($taskEntry in @{ pluginID = $taskPackage.name; version = $taskVersion }.GetEnumerator()) {
+    $taskPattern = '(?m)^const ' + $taskEntry.Key + ' = "' + [regex]::Escape($taskEntry.Value) + '"\r?$'
+    if ($taskSource -notmatch $taskPattern) { throw ('Go 插件注册的 ' + $taskEntry.Key + ' 与 package.json 不一致。') }
+}
 if (!$GoExe) { $GoExe = (Get-Command go -ErrorAction SilentlyContinue).Source }
 if (!$Compiler) { $Compiler = (Get-Command gcc -ErrorAction SilentlyContinue).Source }
 if (!$GoExe -or !(Test-Path -LiteralPath $GoExe -PathType Leaf)) { throw '找不到 Go，请通过 -GoExe 指定已有工具。' }
 if (!$Compiler -or !(Test-Path -LiteralPath $Compiler -PathType Leaf)) { throw '找不到 CGO 编译器，请通过 -Compiler 指定已有编译器。' }
-$taskPlatform = if ($IsLinux) { 'linux' } elseif ($env:OS -eq 'Windows_NT') { 'windows' } else { throw '当前仅支持 Windows 和 Linux amd64 构建。' }
+$taskPlatform = if ($IsLinux) { 'linux' } elseif ($env:OS -eq 'Windows_NT') { 'windows' } else { throw '当前仅支持 Windows 和 Linux。' }
+if (!$Architecture) {
+    $Architecture = (& $GoExe env GOHOSTARCH)
+    if ($LASTEXITCODE -ne 0) { throw '无法识别构建主机架构。' }
+}
+if ($Architecture -notin @('amd64', 'arm64') -or ($taskPlatform -eq 'windows' -and $Architecture -ne 'amd64')) {
+    throw '仅支持 Linux amd64、Linux arm64 与 Windows amd64。'
+}
 $taskExtension = if ($IsLinux) { '.so' } else { '.dll' }
-$taskDirectory = Join-Path $taskRoot "build/$taskPlatform/amd64"
+$taskDirectory = Join-Path $taskRoot "build/$taskPlatform/$Architecture"
 $taskOldLocation = Get-Location
 $taskPreviousEnv = @{}
 foreach ($taskName in @('CC','CGO_ENABLED','GOOS','GOARCH')) { $taskPreviousEnv[$taskName] = [Environment]::GetEnvironmentVariable($taskName, 'Process') }
@@ -27,11 +41,11 @@ try {
     if (Test-Path -LiteralPath $taskEmbedded) { Remove-Item -LiteralPath $taskEmbedded -Recurse -Force }
     New-Item -ItemType Directory -Path $taskEmbedded -Force | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $taskRoot 'dist') -Force | Copy-Item -Destination $taskEmbedded -Recurse -Force
-    $env:CC = $Compiler; $env:CGO_ENABLED = '1'; $env:GOOS = $taskPlatform; $env:GOARCH = 'amd64'
+    $env:CC = $Compiler; $env:CGO_ENABLED = '1'; $env:GOOS = $taskPlatform; $env:GOARCH = $Architecture
     & $GoExe vet ./...
     if ($LASTEXITCODE -ne 0) { throw 'Go 静态检查失败。' }
     New-Item -ItemType Directory -Path $taskDirectory -Force | Out-Null
-    $taskArtifact = Join-Path $taskDirectory ('cpa-codex-downshift-classifier-v' + $taskVersion + $taskExtension)
+    $taskArtifact = Join-Path $taskDirectory ($taskPackage.name + '-v' + $taskVersion + $taskExtension)
     & $GoExe build -trimpath -buildmode=c-shared -ldflags='-s -w' -o $taskArtifact ./cmd/downshift
     if ($LASTEXITCODE -ne 0) { throw 'Go 原生插件构建失败。' }
     $taskHash = Get-FileHash -LiteralPath $taskArtifact -Algorithm SHA256

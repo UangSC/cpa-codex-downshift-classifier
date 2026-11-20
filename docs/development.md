@@ -1,6 +1,6 @@
 # 开发与部署
 
-当前仓库为源码预览。内部版本 `0.1.2` 用于插件注册与产物命名，尚未发布正式版。正式发布需要同时完成 Linux 和 Windows 编译产物及对应宿主验证。
+当前仓库为源码预览。插件版本以 [package.json](../package.json) 中的三段版本号为准，Go 注册版本、包名和正式发布标签使用同一版本。
 
 ## 准备环境
 
@@ -13,20 +13,34 @@ pnpm typecheck
 
 `pnpm dev` 只启动页面开发服务器。正式页面嵌入 CPA 并通过同源管理接口获取真实数据；本项目不提供模拟后端或测试账号。
 
-## Windows 源码构建
+## 原生构建
 
 ```powershell
-./scripts/build.ps1 -GoExe <go.exe路径> -Compiler <gcc.exe路径>
+./scripts/build.ps1 -Architecture amd64
 ```
 
-工具已在 PATH 中时可省略路径；也可使用 `CPA_DOWNSHIFT_GO` 和 `CC` 进程变量。脚本会：
+支持 Windows amd64、Linux amd64 和 Linux arm64。在 Linux ARM64 主机上使用 `-Architecture arm64`，也可以省略参数以使用当前 Go 工具链的主机架构。交叉构建时通过 `-Compiler` 指定目标平台的 C 编译器。工具未加入 PATH 时，可通过 `-GoExe`、`-Compiler` 或 `CPA_DOWNSHIFT_GO`、`CC` 进程变量指定路径。脚本会：
 
-1. 执行 TypeScript 检查与 Vite 构建。
+1. 核对 Go 的插件 ID、注册版本与包配置，执行 TypeScript 检查和 Vite 构建。
 2. 将页面产物准备到 `web/dist/`，供 `go:embed` 使用。
-3. 运行 `go vet` 并生成 Windows amd64 原生 DLL。
-4. 在 `build/windows/amd64/` 写入本地产物和 SHA-256 文件。
+3. 运行 `go vet` 并生成当前平台的共享库。
+4. 在 `build/<平台>/<架构>/` 写入本地产物和 SHA-256 文件。
 
 `dist/`、`web/dist/` 和 `build/` 均为生成目录，不提交到源码仓库。直接运行 Go 构建或静态检查前，应先通过构建脚本准备嵌入资源。源码变更可在本地执行额外验证；本地测试脚本与诊断资料不随此次源码发布。
+
+## 安装包与版本
+
+发布构建使用 Go 1.26.10，从版本标签指向的干净 Git 提交构建三个目标。标签采用 `v<版本号>`，版本号取自 `package.json`。构建时间保留在 Git 的构建元数据中。
+
+```powershell
+$tag = 'v' + (node -p "require('./package.json').version")
+python scripts/package_release.py --platform linux --arch amd64 --tag $tag
+python scripts/package_release.py --platform linux --arch arm64 --tag $tag
+python scripts/package_release.py --platform windows --arch amd64 --tag $tag
+python scripts/package_release.py --checksums --tag $tag
+```
+
+安装包和 `checksums.txt` 输出至 `build/release/<版本号>/`。推送版本标签会触发三平台构建和 GitHub Release 发布。
 
 ## 配置与部署
 

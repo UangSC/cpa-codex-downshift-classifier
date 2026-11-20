@@ -12,11 +12,18 @@ jobs:
         include:
           - runner: windows-2022
             platform: windows
+            arch: amd64
           - runner: ubuntu-22.04
             platform: linux
+            arch: amd64
+          - runner: ubuntu-22.04-arm
+            platform: linux
+            arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.10'
@@ -29,15 +36,15 @@ jobs:
           version: '12.3.4'
       - run: pnpm install --frozen-lockfile
       - shell: pwsh
-        run: ./scripts/build.ps1
+        run: ./scripts/build.ps1 -Architecture "${{ matrix.arch }}"
       - name: 打包并核对标签
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: python scripts/package_release.py --platform "${{ matrix.platform }}" --tag $env:RELEASE_TAG
+        run: python scripts/package_release.py --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}" --tag $env:RELEASE_TAG
       - uses: actions/upload-artifact@v4
         with:
-          name: store-${{ matrix.platform }}
+          name: store-${{ matrix.platform }}-${{ matrix.arch }}
           path: build/release/
           if-no-files-found: error
 
@@ -48,6 +55,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache: false
       - name: 读取并验证版本
         id: version
         env:
@@ -61,7 +74,7 @@ jobs:
           pattern: store-*
           merge-multiple: true
           path: build/release/
-      - name: 校验并发布两个平台的安装包
+      - name: 校验并发布三个构建目标的安装包
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}

@@ -2,7 +2,7 @@
 
 基于 Go 原生插件和 React 管理页面，通过 CLIProxyAPI（CPA）官方宿主接口检测 Codex 凭证，记录回答与判定依据，并按凭证管理分组前缀或优先级。
 
-**当前为开发中的源码预览，内部版本 `0.1.2`，尚未发布正式插件包。** 正式版本将同时提供 Linux 和 Windows 编译产物；本仓库当前只发布源码、文档和必要构建工具。
+**当前为开发中的源码预览。** 插件版本见 [package.json](package.json)，可构建 Linux amd64、Linux arm64 和 Windows amd64 三种插件包。
 
 ## 功能
 
@@ -28,7 +28,7 @@ pnpm install --frozen-lockfile
 ./scripts/build.ps1 -GoExe <go.exe路径> -Compiler <gcc.exe路径>
 ```
 
-当前构建脚本面向 Windows amd64，依次构建页面、准备嵌入资源、运行 Go 静态检查并生成 DLL。产物留在本地 `build/windows/amd64/`，不随源码提交。Linux 打包与跨平台发布验证尚待完成。
+构建脚本编译页面、准备嵌入资源、运行 Go 静态检查，再生成对应的 DLL 或 SO。三平台构建、版本校验及打包见 [开发与部署](docs/development.md)。
 
 安装到本机 CPA：
 
