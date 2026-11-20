@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "id": "cpa-codex-downshift-classifier",
+      "name": "Codex 降档检测与分类",
+      "description": "巡检 Codex 凭证的回答质量，展示证据、近期统计和额度，按检测结果管理分组与优先级。",
+      "author": "UangSC",
+      "repository": "https://github.com/UangSC/cpa-codex-downshift-classifier",
+      "tags": ["codex", "monitoring"]
+    }
+  ]
+}

@@ -122,7 +122,7 @@ export function EvidenceSheet() {
           <button
             type="button"
             className="btn btn-sm btn-primary"
-            disabled={!credential || state.connection !== 'connected' || state.starting || state.tasks.some((task) => task.status === 'running') || credential.auth === 'expired'}
+            disabled={!credential || state.connection !== 'connected' || state.starting || state.tasks.some((task) => task.status === 'running' && task.items.some((item) => item.targetId === target.id)) || credential.auth === 'expired'}
             onClick={() => {
               state.closeDetail()
               startInspection('manual', [target.id])
@@ -296,9 +296,9 @@ export function EvidenceSheet() {
               <dt>凭证分组</dt>
               <dd>
                 {typeof credential?.prefix === 'string'
-                  ? `${credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'} · 当前前缀 ${credential.prefix || '无前缀'} · 优先级 ${routingValues?.priority ?? 0} · 继承权重 ${credential.routing?.weight ?? '未知'}`
+                  ? `${credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'} · 当前前缀 ${credential.prefix || '无前缀'} · 优先级 ${routingValues?.priority ?? 0} · 权重 ${credential.routing?.weight ?? '未知'}`
                   : state.settings.routing.mode === 'priority'
-                  ? `${credential?.group === 'normal' ? '正常' : credential?.group === 'downshift' ? '降档' : '未分组'} · 优先级 ${routingValues?.priority ?? 0} · 继承权重 ${credential?.routing?.weight ?? '未知'}`
+                  ? `${credential?.group === 'normal' ? '正常' : credential?.group === 'downshift' ? '降档' : '未分组'} · 优先级 ${routingValues?.priority ?? 0} · 权重 ${credential?.routing?.weight ?? '未知'}`
                   : credential?.group === 'normal'
                   ? state.settings.prefixes.normal
                     ? `正常组 ${state.settings.prefixes.normal}（全部 ${groupedModels} 个模型）`

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useStore, type TabKey } from './store/store'
 import { Overview } from './views/Overview'
+import { Statistics } from './views/Statistics'
 import { HistoryView } from './views/History'
 import { SettingsView } from './views/Settings'
 import { RunPanel } from './components/RunPanel'
@@ -15,6 +16,7 @@ import { handleApplicationShortcut } from './lib/applicationShortcuts'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: '概览' },
+  { key: 'statistics', label: '统计' },
   { key: 'history', label: '历史' },
   { key: 'settings', label: '设置' },
 ]
@@ -133,12 +135,7 @@ export default function App() {
                 )}
               </button>
 
-              <span
-                className={`env-badge ${connection === 'connected' ? 'is-live' : ''}`}
-              >
-                <i aria-hidden="true" />
-                {connection === 'connected' ? '实时数据' : '未连接'}
-              </span>
+              {connection !== 'connected' && <span className="env-badge"><i aria-hidden="true" />未连接</span>}
 
               <button
                 type="button"
@@ -157,6 +154,7 @@ export default function App() {
         <main className="page">
           <ConnectionPanel />
           {tab === 'overview' && <Overview onOpenDetail={openDetail} />}
+          {tab === 'statistics' && <Statistics />}
           {tab === 'history' && <HistoryView onOpenDetail={openDetail} />}
           {tab === 'settings' && <SettingsView />}
         </main>

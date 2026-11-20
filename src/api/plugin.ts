@@ -45,9 +45,7 @@ export function createPluginBackend(): Backend {
     refreshQuota: (body: QuotaRefreshRequest) => request<QuotaRefreshResponse>(ENDPOINTS.quotaRefresh,
       { method: 'POST', body: JSON.stringify(body) }, Math.max(30_000, Math.ceil(body.credentialIds.length / 2) * 30_000 + 10_000)),
     saveRouting: async (body: RoutingRequest) => {
-      if (body.weight !== undefined) throw new APIError('权重继承 CPA 当前配置，插件只调整优先级', 400)
-      const { credentialId, priority, reset } = body
-      await request(ENDPOINTS.routing, { method: 'PUT', body: JSON.stringify({ credentialId, priority, reset }) })
+      await request(ENDPOINTS.routing, { method: 'PUT', body: JSON.stringify(body) })
     },
   }
 }

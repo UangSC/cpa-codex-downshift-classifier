@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { MIN_TOOLTIP_DELAY_MS, scheduleTooltipOpening, suppressSelectionReleaseClick } from '../../lib/tooltipInteraction'
+import { DEFAULT_TOOLTIP_DELAY_MS, scheduleTooltipOpening, suppressSelectionReleaseClick } from '../../lib/tooltipInteraction'
 
 /**
  * Small hover/focus card rendered in a portal so card `overflow: hidden` never clips it.
- * 鼠标悬浮和键盘焦点均等待至少三秒；主动点击固定气泡仍会立即打开。
+ * 鼠标悬浮和键盘焦点均按组件指定的延迟显示；主动点击固定气泡仍会立即打开。
  */
 /** A pinned tip lingers this long after the pointer leaves, then fades out. */
 const PIN_LINGER_MS = 1000
@@ -16,7 +16,7 @@ export function HoverCard({
   placement = 'top',
   pinOnClick = false,
   hideDelay = 0,
-  showDelay = MIN_TOOLTIP_DELAY_MS,
+  showDelay = DEFAULT_TOOLTIP_DELAY_MS,
   compact = false,
 }: {
   content: ReactNode
@@ -25,7 +25,7 @@ export function HoverCard({
   /** Clicking the anchor pins the tip; after leaving it lingers, then fades out. */
   pinOnClick?: boolean
   hideDelay?: number
-  /** 等待至少三秒再出现；调用方只可增加等待时间。 */
+  /** 悬浮或聚焦后显示气泡的等待毫秒数。 */
   showDelay?: number
   /** 使用相同主题的两字小气泡，不携带额外操作说明。 */
   compact?: boolean

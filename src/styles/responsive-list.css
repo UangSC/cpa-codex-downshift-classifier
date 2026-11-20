@@ -8,15 +8,16 @@
   display: grid;
   min-width: 0;
   width: 100%;
-  grid-template-areas: 'selection identity routing verdict lights group quota actions';
-  grid-template-columns: 20px minmax(170px, 1fr) 200px 56px minmax(106px, .62fr) 96px minmax(146px, .72fr) 228px;
+  grid-template-areas: 'selection identity priority weight verdict lights group quota actions';
+  grid-template-columns: 20px minmax(170px, 1fr) 103px 80px 56px minmax(106px, .62fr) 96px minmax(146px, .72fr) 228px;
   align-items: center;
   gap: 9px;
   padding-inline: 14px;
 }
 :root body .cred-table [data-list-cell='selection'] { grid-area: selection; }
 :root body .cred-table [data-list-cell='identity'] { grid-area: identity; }
-:root body .cred-table [data-list-cell='routing'] { grid-area: routing; }
+:root body .cred-table [data-list-cell='priority'] { grid-area: priority; }
+:root body .cred-table [data-list-cell='weight'] { grid-area: weight; }
 :root body .cred-table [data-list-cell='verdict'] { grid-area: verdict; }
 :root body .cred-table [data-list-cell='lights'] { grid-area: lights; }
 :root body .cred-table [data-list-cell='group'] { grid-area: group; }
@@ -89,7 +90,8 @@
     padding-inline: 12px;
     gap: 9px;
   }
-  :root body .cred-table [data-list-cell='routing'],
+  :root body .cred-table [data-list-cell='priority'],
+  :root body .cred-table [data-list-cell='weight'],
   :root body .cred-table [data-list-cell='group'] { display: none; }
   :root body .cred-table .cred-row-actions .cred-actions { gap: 5px; }
   :root body .cred-table .cred-row-actions .cred-actions .btn {

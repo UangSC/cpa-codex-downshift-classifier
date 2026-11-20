@@ -42,21 +42,30 @@ func (s *Service) SaveRouting(ctx context.Context, q RoutingRequest) error {
 		return &apiError{404, "Codex 凭证不存在"}
 	}
 	if q.Weight != nil {
-		return &apiError{409, "权重继承 CPA 当前值，插件不修改权重"}
+		strategy, err := s.adapter.RoutingStrategy(ctx)
+		if err != nil {
+			return err
+		}
+		if strategy != "weighted-round-robin" {
+			return &apiError{409, "加权轮询策略下才可修改权重"}
+		}
+		if *q.Weight < 0 || *q.Weight > 9999 || q.Reset {
+			return bad("权重支持 0～9999，不能与重置同时提交")
+		}
 	}
-	if !q.Reset && q.Priority == nil {
+	if !q.Reset && q.Priority == nil && q.Weight == nil {
 		return bad("未提供路由数值")
 	}
 	s.mu.Lock()
 	if s.credentialBusyLocked(q.CredentialID) {
 		s.mu.Unlock()
-		return &apiError{409, "该凭证仍在巡检任务中，请先停止任务或等待完成后再修改优先级"}
+		return &apiError{409, "该凭证仍在巡检任务中，请先停止任务或等待完成后再修改调度数值"}
 	}
 	v := clone(s.state.Settings)
 	r := s.recordLocked(q.CredentialID)
 	group := r.Group
 	s.mu.Unlock()
-	var fields cpa.Fields
+	fields := cpa.Fields{Weight: q.Weight}
 	if q.Reset {
 		delete(v.Routing.Overrides, q.CredentialID)
 		values, _ := routingValues(v.Routing, q.CredentialID, group)
@@ -72,12 +81,14 @@ func (s *Service) SaveRouting(ctx context.Context, q RoutingRequest) error {
 		if err = validateValues(values); err != nil {
 			return err
 		}
-		v.Routing.Overrides[q.CredentialID] = values
+		if q.Priority != nil {
+			v.Routing.Overrides[q.CredentialID] = values
+		}
 		fields.Priority = q.Priority
 	}
 	// 官方接口写入成功后，覆盖值才持久化，避免展示未生效的数字。
 	// 手动数值编辑不改前缀，也不清除已有的分组同步失败。
-	changed := fields.Priority != nil && *fields.Priority != found.Priority
+	changed := fields.Priority != nil && *fields.Priority != found.Priority || fields.Weight != nil && *fields.Weight != found.Weight
 	if changed {
 		if err = s.adapter.UpdateFields(ctx, q.CredentialID, fields); err != nil {
 			return err

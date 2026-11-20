@@ -28,7 +28,7 @@ export function ExcludedCredential({ view, selected, onSelect, disabled, now }: 
   const threshold = useStore((state) => state.settings.quota.minRemainingPercent)
   const openDetail = useStore((state) => state.openDetail)
   const updating = useStore((state) => state.excluding.includes(credential.id))
-  return <article className={`excluded-credential tone-${view.verdict} ${selected ? 'is-selected' : ''}`} {...cardIdentityAttributes(credential.plan, credential.id)} data-credential-id={credential.id} data-inspection-excluded="true">
+  return <article className={`excluded-credential tone-${view.verdict} ${selected ? 'is-selected' : ''}`} {...cardIdentityAttributes(credential.plan)} data-credential-id={credential.id} data-inspection-excluded="true">
     <div className="excluded-card-head">
       <label className="excluded-card-selection"><input className="checkbox" type="checkbox" checked={selected} disabled={disabled} onChange={onSelect} aria-label={`选择 ${credential.name} 恢复参与巡检`} /></label>
       <SecretName name={credential.name} className="excluded-card-name" />
@@ -53,7 +53,7 @@ export function ExcludedCredential({ view, selected, onSelect, disabled, now }: 
     <div className="excluded-card-config">
       <span>原分组 <strong>{credential.group === 'normal' ? '正常' : credential.group === 'downshift' ? '降档' : '未分组'}</strong></span>
       <span>优先级 <strong>{credential.routing?.priority ?? '未知'}</strong></span>
-      <span>继承权重 <strong>{credential.routing?.weight ?? '未知'}</strong></span>
+      <span>权重 <strong>{credential.routing?.weight ?? '未知'}</strong></span>
     </div>
     <div className="excluded-card-prefix"><span>当前前缀</span><code>{typeof credential.prefix === 'string' ? credential.prefix || '无前缀' : '未知'}</code></div>
     <div className="excluded-card-foot">
@@ -121,7 +121,7 @@ export function ExclusionDrawer() {
     backdropClassName={`exclusion-drawer-backdrop ${entered ? 'is-visible' : 'is-leaving'}`}
     head={<span className="exclusion-drawer-count">{excluded.length}</span>}>
     <div className={`exclusion-drawer-content ${entered ? 'is-open' : 'is-closing'}`}>
-      <div className="exclusion-drawer-policy"><ExclusionIcon /><span>原分类、历史、模型前缀、优先级与继承权重保持不变。</span></div>
+      <div className="exclusion-drawer-policy"><ExclusionIcon /><span>原分类、历史、模型前缀、优先级与权重保持不变。</span></div>
       <div className="exclusion-drawer-search"><Icon.Search /><input className="input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索不参与巡检的凭证" aria-label="搜索不参与巡检的凭证" /></div>
       <div className="exclusion-drawer-toolbar">
         <label><input className="checkbox" type="checkbox" checked={allChecked} disabled={!restorable.length} onChange={() => setSelected((current) => allChecked ? current.filter((id) => !restorable.some((view) => view.credential.id === id)) : [...new Set([...current, ...restorable.map((view) => view.credential.id)])])} />全选当前结果</label>

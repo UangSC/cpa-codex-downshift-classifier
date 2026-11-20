@@ -71,7 +71,7 @@ export function HistoryView({ onOpenDetail }: { onOpenDetail: (targetId: string,
     </div> : filtered.map((batch) => {
       const original = batchesById.get(batch.id)!
       const running = batch.task?.status === 'running'
-      const open = expanded[batch.id] ?? false
+      const open = expanded[batch.id] ?? (batch.id === filtered[0]?.id)
       const outcomes = original.entries.reduce((values, entry) => { values[historyEntryOutcome(entry)] += 1; return values },
         { normal: 0, downshift: 0, uncertain: 0, incomplete: 0 })
       const finished = batch.task?.items.filter((item) => ['done', 'skipped', 'cancelled', 'failed'].includes(item.state)).length ?? original.entries.length

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { roundTone } from '../lib/derive'
-import { formatClock, formatDuration, formatRelative } from '../lib/format'
+import { formatClock } from '../lib/format'
 import { RUN_STATE_LABEL, type HistoryBatchEntry } from '../lib/historyBatches'
 import { REASON_LABEL, testLabel } from '../lib/rules'
 import { Chip, Dot, PlanMark, SecretName, type ChipTone } from './ui'
 
 const stateTone = (state: string): ChipTone => state === 'running' ? 'accent' : state === 'waiting' || state === 'retrying' ? 'uncertain' : state === 'failed' ? 'downshift' : 'plain'
 
-function EntryContent({ entry, now }: { entry: HistoryBatchEntry; now: number }) {
+function EntryContent({ entry, now, recent }: { entry: HistoryBatchEntry; now: number; recent: boolean }) {
   const { round, item, target, credential } = entry
   const outcome = round?.outcome
   const tone = round ? roundTone(round) : item?.state === 'running' ? 'uncertain' : 'empty'
@@ -22,21 +22,33 @@ function EntryContent({ entry, now }: { entry: HistoryBatchEntry; now: number })
   const retrySeconds = item?.state === 'retrying' && Number.isFinite(retryTime) ? Math.max(0, Math.ceil((retryTime - now) / 1000)) : null
   const lastStatus = typeof item?.lastStatus === 'number' && item.lastStatus >= 100 ? `最近 HTTP ${item.lastStatus}`
     : item?.lastStatus === 'network-error' ? '最近网络错误' : null
+  const testNames = round ? testLabel(round.tests) : item?.currentTest ? testLabel([item.currentTest]) : null
+  const modelParts = /^gpt-(\d+(?:\.\d+)*)(?:-(sol|astra|terra))?$/i.exec(model)
+  const modelFamily = modelParts?.[2]
+  const shortModel = modelParts ? modelParts[1] + (modelFamily ? modelFamily[0].toUpperCase() + modelFamily.slice(1).toLowerCase() : '') : model
+  const effort = round?.reasoningEffort
+  const effortLabel = effort ? effort[0].toUpperCase() + effort.slice(1) : '未记录'
+  const badges = <>
+    {recent ? <Chip>{testNames ?? '巡检'} · {shortModel} · {effortLabel}</Chip> : testNames && <Chip>{testNames}</Chip>}
+    {round?.sync?.status === 'failed' && <Chip tone="downshift">同步失败</Chip>}
+  </>
   return <>
-    <Dot tone={tone} />
+    {recent ? <span className="recent-entry-status" aria-label={outcome === 'uncertain' ? '未知' : label}>
+      <Chip tone={statusTone}>{Array.from(outcome === 'uncertain' ? '未知' : label).map((character, index) =>
+        <span key={index} aria-hidden="true">{character}</span>)}</Chip>
+    </span> : <Dot tone={tone} />}
     <span className="history-main">
       <span className="history-title">
         {credential && <PlanMark plan={credential.plan} size="sm" />}
         <span className="name">{credential ? <SecretName name={credential.name} /> : '凭证已删除'}</span>
-        <Chip tone={statusTone}>{label}</Chip>
-        {round && <Chip>{testLabel(round.tests)}</Chip>}
-        {!round && item?.currentTest && <Chip>{testLabel([item.currentTest])}</Chip>}
-        {round?.sync?.status === 'failed' && <Chip tone="downshift">同步失败</Chip>}
+        {!recent && <><Chip tone={statusTone}>{label}</Chip>{badges}</>}
       </span>
-      <span className="history-sub"><span className="mono">{model}</span> · {note}</span>
+      <span className={recent ? 'recent-entry-result' : undefined}><span className="history-sub">{recent
+        ? <>{badges}{note}</>
+        : <><span className="mono">{model}</span> · {note}</>}</span></span>
     </span>
     <span className="history-side">
-      {round ? <><span>{formatClock(round.finishedAt)} · {formatRelative(round.finishedAt, now)}</span><span>{formatDuration(round.evidence.durationMs)}</span></>
+      {round ? <time dateTime={round.finishedAt}>{formatClock(round.finishedAt).slice(0, 5)}</time>
         : <><span>{item?.attempt ? `第 ${item.attempt} 次请求` : '尚未发起请求'}</span>
           {lastStatus && <span>{lastStatus}</span>}
           {retrySeconds != null && <span>{retrySeconds > 0 ? `等待 ${retrySeconds} 秒后重试` : '即将重试'}</span>}
@@ -45,9 +57,10 @@ function EntryContent({ entry, now }: { entry: HistoryBatchEntry; now: number })
   </>
 }
 
-export function InspectionBatchItems({ entries, now, onOpenDetail }: {
+export function InspectionBatchItems({ entries, now, onOpenDetail, recent = false }: {
   entries: HistoryBatchEntry[]
   now: number
+  recent?: boolean
   onOpenDetail: (targetId: string, roundId?: string | null) => void
 }) {
   const hasRetrying = entries.some((entry) => !entry.round && entry.item?.state === 'retrying')
@@ -59,11 +72,11 @@ export function InspectionBatchItems({ entries, now, onOpenDetail }: {
     return () => window.clearInterval(timer)
   }, [hasRetrying])
   const displayNow = hasRetrying ? Math.max(now, retryNow) : now
-  return <div className="history-list" role="list">
+  return <div className={recent ? 'history-list recent-batch-list' : 'history-list'} role="list">
     {entries.map((entry) => <div role="listitem" key={entry.id}>
       {entry.round ? <button type="button" className="history-item inspection-batch-entry" onClick={() => onOpenDetail(entry.targetId, entry.round!.id)} aria-label="查看该凭证本轮依据">
-        <EntryContent entry={entry} now={displayNow} />
-      </button> : <div className="history-item inspection-batch-entry is-pending"><EntryContent entry={entry} now={displayNow} /></div>}
+        <EntryContent entry={entry} now={displayNow} recent={recent} />
+      </button> : <div className="history-item inspection-batch-entry is-pending"><EntryContent entry={entry} now={displayNow} recent={recent} /></div>}
     </div>)}
   </div>
 }

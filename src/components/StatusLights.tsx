@@ -111,7 +111,7 @@ export function StatusLights({
     // lives in a hover bubble instead of inline text pushing the strip off-centre.
     return (
       <div className="lights lights-is-empty" role="group" aria-label="近期检测状态：暂无记录">
-        <HoverCard
+        <HoverCard showDelay={300}
           content={
             <>
               <div className="tip-title">暂无检测记录</div>
@@ -143,7 +143,7 @@ export function StatusLights({
         const tone = roundTone(round)
         const problem = tone === 'uncertain' || tone === 'downshift'
         return (
-          <HoverCard
+          <HoverCard showDelay={300}
             key={round.id}
             pinOnClick={problem}
             hideDelay={problem ? 150 : 0}

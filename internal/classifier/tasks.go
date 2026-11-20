@@ -3,7 +3,6 @@ package classifier
 import (
 	"context"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/UangSC/cpa-codex-downshift-classifier/internal/cpa"
@@ -85,34 +84,70 @@ func (s *Service) Start(ctx context.Context, q StartRequest) (string, error) {
 	if len(candidates) == 0 {
 		return "", &apiError{409, "所选凭证均不参与巡检，请先恢复参与"}
 	}
-	for _, t := range s.state.Tasks {
-		if t.Status == "running" {
-			return "", &apiError{409, "已有巡检任务正在运行"}
-		}
+	if s.ctx.Err() != nil {
+		return "", &apiError{409, "插件正在停止"}
 	}
 	task := Task{ID: identifier("task"), Scope: q.Scope, Label: "Codex 凭证巡检", Method: q.Method, CreatedAt: stamp(), Status: "running", Items: []RunItem{}, Concurrency: s.state.Settings.Concurrency.MaxObjects}
+	var queue *inspectionQueue
+	existingIndex := -1
+	seen := make(map[string]bool)
+	for i, active := range s.state.Tasks {
+		if active.Status != "running" {
+			continue
+		}
+		queue = s.tasks[active.ID]
+		if queue == nil || queue.ctx.Err() != nil {
+			return "", &apiError{409, "当前巡检正在收尾"}
+		}
+		task = active
+		task.Items = append([]RunItem(nil), active.Items...)
+		existingIndex = i
+		for _, item := range task.Items {
+			seen[item.TargetID] = true
+		}
+		break
+	}
+	newJobs := make([]inspectionJob, 0, len(candidates))
 	for _, c := range candidates {
 		tid := targetID(c.ID, q.Model)
+		if seen[tid] {
+			continue
+		}
+		newJobs = append(newJobs, inspectionJob{credential: c, request: q})
 		r := s.recordLocked(c.ID)
 		if _, ok := r.Targets[q.Model]; !ok {
 			r.Targets[q.Model] = Target{ID: tid, CredentialID: c.ID, Model: q.Model, Verdict: "untested", Rounds: []Round{}}
 		}
 		task.Items = append(task.Items, RunItem{TargetID: tid, State: "queued"})
 	}
+	if len(newJobs) == 0 {
+		return task.ID, nil
+	}
 	previous := s.state.Tasks
-	s.state.Tasks = append([]Task{task}, previous...)
-	if len(s.state.Tasks) > 40 {
-		s.state.Tasks = s.state.Tasks[:40]
+	if existingIndex >= 0 {
+		s.state.Tasks = append([]Task(nil), previous...)
+		s.state.Tasks[existingIndex] = task
+	} else {
+		s.state.Tasks = append([]Task{task}, previous...)
+		if len(s.state.Tasks) > 40 {
+			s.state.Tasks = s.state.Tasks[:40]
+		}
 	}
 	if err = s.persistLocked(); err != nil {
 		s.state.Tasks = previous
 		return "", err
 	}
-	taskCtx, cancel := context.WithCancel(s.ctx)
-	s.tasks[task.ID] = cancel
-	settings := clone(s.state.Settings)
-	s.wg.Add(1)
-	go s.runTask(taskCtx, cancel, task, q, candidates, settings)
+	if queue == nil {
+		taskCtx, cancel := context.WithCancel(s.ctx)
+		queue = &inspectionQueue{ctx: taskCtx, cancel: cancel, settings: clone(s.state.Settings)}
+		s.tasks[task.ID] = queue
+	}
+	queue.jobs = append(queue.jobs, newJobs...)
+	for i := 0; i < len(newJobs) && queue.workers < task.Concurrency; i++ {
+		queue.workers++
+		s.wg.Add(1)
+		go s.runWorker(task, queue)
+	}
 	return task.ID, nil
 }
 func sortCredentials(c []cpa.Credential) { // 空闲或未知先执行，明确忙碌的账号稍后等待。
@@ -149,8 +184,8 @@ func (s *Service) CancelTask(id string) error {
 		if t.ID != id {
 			continue
 		}
-		if cancel := s.tasks[id]; cancel != nil {
-			cancel()
+		if queue := s.tasks[id]; queue != nil {
+			queue.cancel()
 		}
 		if t.Status == "running" {
 			t.Status = "cancelled"
@@ -171,36 +206,38 @@ func (s *Service) CancelTask(id string) error {
 	}
 	return &apiError{404, "任务不存在"}
 }
-func (s *Service) runTask(ctx context.Context, cancel context.CancelFunc, task Task, q StartRequest, credentials []cpa.Credential, settings Settings) {
+
+type inspectionJob struct {
+	credential cpa.Credential
+	request    StartRequest
+}
+
+type inspectionQueue struct {
+	ctx                context.Context
+	cancel             context.CancelFunc
+	settings           Settings
+	jobs               []inspectionJob
+	workers            int
+	connectionFailures atomic.Int32
+}
+
+func (s *Service) runWorker(task Task, queue *inspectionQueue) {
 	defer s.wg.Done()
-	defer cancel()
-	jobs := make(chan cpa.Credential)
-	var workers sync.WaitGroup
-	var connectionFailures atomic.Int32
-	for i := 0; i < task.Concurrency; i++ {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			for c := range jobs {
-				if ctx.Err() != nil {
-					return
-				}
-				s.inspect(ctx, cancel, task, q, c, settings, &connectionFailures)
-			}
-		}()
-	}
-dispatch:
-	for _, c := range credentials {
-		select {
-		case jobs <- c:
-		case <-ctx.Done():
-			break dispatch
-		}
-	}
-	close(jobs)
-	workers.Wait()
 	s.mu.Lock()
+	for len(queue.jobs) > 0 && queue.ctx.Err() == nil {
+		job := queue.jobs[0]
+		queue.jobs[0] = inspectionJob{}
+		queue.jobs = queue.jobs[1:]
+		s.mu.Unlock()
+		s.inspect(queue.ctx, queue.cancel, task, job.request, job.credential, queue.settings, &queue.connectionFailures)
+		s.mu.Lock()
+	}
 	defer s.mu.Unlock()
+	queue.workers--
+	if queue.workers > 0 {
+		return
+	}
+	defer queue.cancel()
 	delete(s.tasks, task.ID)
 	for i := range s.state.Tasks {
 		t := &s.state.Tasks[i]
@@ -209,7 +246,7 @@ dispatch:
 		}
 		now := stamp()
 		t.FinishedAt = &now
-		if ctx.Err() != nil {
+		if queue.ctx.Err() != nil {
 			t.Status = "cancelled"
 		} else {
 			t.Status = "completed"
@@ -226,7 +263,7 @@ dispatch:
 		}
 	}
 	// 无人值守连续连接失败时，同时停止计划，避免无限新建任务。
-	if connectionFailures.Load() >= 3 {
+	if queue.connectionFailures.Load() >= 3 {
 		s.state.Settings.Schedule.Enabled = false
 		s.state.Settings.Schedule.NextRunAt = nil
 	}

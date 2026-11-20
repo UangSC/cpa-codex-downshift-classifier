@@ -83,9 +83,10 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   const excludedCount = credentials.filter((credential) => credential.inspectionExcluded).length
   const participatingSelected = selected.filter((id) => participating.some((credential) => credential.id === id))
 
+  const sort = filters.sort ?? (settings.layout === 'list' ? 'status' : 'recent')
   const views = useMemo(
-    () => sortViews(buildViews(participating, targets, settings), filters.sort),
-    [participating, targets, settings, filters.sort],
+    () => sortViews(buildViews(participating, targets, settings), sort),
+    [participating, targets, settings, sort],
   )
 
   const counts = useMemo(() => {
@@ -109,7 +110,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
     if (!runningTask) return []
     const running = new Set(
       runningTask.items
-        .filter((i) => i.state === 'running' || i.state === 'retrying' || i.state === 'waiting')
+        .filter((i) => i.state === 'queued' || i.state === 'running' || i.state === 'retrying' || i.state === 'waiting')
         .map((i) => i.targetId),
     )
     return views.filter((v) => v.target && running.has(v.target.id)).map((v) => v.credential.id)
@@ -170,7 +171,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
   }
 
   const runtime = {
-    canInspect: state.connection === 'connected' && !state.starting && !runningTask && !state.excluding.length,
+    canInspect: state.connection === 'connected' && !state.starting && !state.excluding.length,
     canChangeParticipation: state.connection === 'connected' && !state.starting,
     settings,
     activeCredentialIds,
@@ -229,7 +230,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <button
             type="button"
             className="btn btn-primary"
-            disabled={state.connection !== 'connected' || state.starting || state.settingsSaving || Boolean(state.settingsDraft) || state.excluding.length > 0 || Boolean(runningTask) || eligible.length === 0}
+            disabled={state.connection !== 'connected' || state.starting || state.settingsSaving || Boolean(state.settingsDraft) || state.excluding.length > 0 || eligible.length === 0}
             onClick={() => startInspection('batch')}
           >
             <Icon.Play />
@@ -330,10 +331,11 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
         )}
         <select
           className="select"
-          value={filters.sort}
-          onChange={(e) => state.setFilters({ sort: e.target.value as 'recent' | 'quota' | 'name' })}
+          value={sort}
+          onChange={(e) => state.setFilters({ sort: e.target.value as 'status' | 'recent' | 'quota' | 'name' })}
           aria-label="排序方式"
         >
+          <option value="status">按状态优劣</option>
           <option value="recent">按最近检测</option>
           <option value="quota">按剩余额度</option>
           <option value="name">按名称</option>
@@ -403,7 +405,7 @@ export function Overview({ onOpenDetail }: { onOpenDetail: (targetId: string, ro
           <span className="sel-text">
             已选择 <b>{participatingSelected.length}</b> 个凭证<span className="selection-cross-page">跨页选择保留，操作包含全部已选凭证</span>
           </span>
-          <button type="button" className="btn btn-primary btn-sm" disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0 || !!runningTask} onClick={retestSelected}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={state.connection !== 'connected' || state.starting || state.excluding.length > 0} onClick={retestSelected}>
             <Icon.Play />
             巡检选中
           </button>

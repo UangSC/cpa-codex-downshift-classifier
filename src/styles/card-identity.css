@@ -31,7 +31,7 @@
   pointer-events: none;
   background-image:
     var(--identity-monogram),
-    radial-gradient(circle at calc(100% + var(--identity-offset)) 54%, transparent 0 72px, var(--identity-ring) 73px 83px, transparent 84px 101px, color-mix(in srgb, var(--identity-ring) 50%, transparent) 102px 104px, transparent 105px),
+    radial-gradient(circle at calc(100% + 32px) 54%, transparent 0 72px, var(--identity-ring) 73px 83px, transparent 84px 101px, color-mix(in srgb, var(--identity-ring) 50%, transparent) 102px 104px, transparent 105px),
     radial-gradient(ellipse 170px 210px at 100% 55%, var(--identity-shadow-wash), transparent 78%),
     radial-gradient(ellipse 200px 180px at 97% 48%, var(--identity-wash), transparent 76%),
     linear-gradient(145deg, var(--frost-sheen, transparent), transparent 52%),
@@ -43,7 +43,7 @@
 }
 :root body :is(.cred-tile, .pool-card, .excluded-credential)[data-card-pattern='ring']::after {
   background-image:
-    radial-gradient(circle at calc(100% + var(--identity-offset)) 54%, transparent 0 72px, var(--identity-ring) 73px 84px, transparent 85px 101px, color-mix(in srgb, var(--identity-ring) 50%, transparent) 102px 105px, transparent 106px),
+    radial-gradient(circle at calc(100% + 32px) 54%, transparent 0 72px, var(--identity-ring) 73px 84px, transparent 85px 101px, color-mix(in srgb, var(--identity-ring) 50%, transparent) 102px 105px, transparent 106px),
     radial-gradient(ellipse 170px 210px at 100% 55%, var(--identity-shadow-wash), transparent 78%),
     radial-gradient(ellipse 200px 180px at 97% 48%, var(--identity-wash), transparent 76%),
     linear-gradient(145deg, var(--frost-sheen, transparent), transparent 52%),
@@ -55,12 +55,12 @@
 :root body :is(.cred-tile, .pool-card, .excluded-credential)[data-card-pattern='monogram'] {
   --identity-ring: transparent;
 }
-:root body :is(.cred-tile, .pool-card, .excluded-credential)[data-card-identity='pro-500'] {
+:root body :is(.cred-tile, .pool-card, .excluded-credential):is([data-card-identity='pro-500'], [data-card-identity='team-500']) {
   --identity-ring: color-mix(in srgb, var(--identity-accent) 18%, transparent);
   --identity-wash: color-mix(in srgb, var(--identity-accent) 8%, transparent);
   --identity-shadow-wash: color-mix(in srgb, var(--identity-shade) 10%, transparent);
 }
-[data-theme='dark'] body :is(.cred-tile, .pool-card, .excluded-credential)[data-card-identity='pro-500'] {
+[data-theme='dark'] body :is(.cred-tile, .pool-card, .excluded-credential):is([data-card-identity='pro-500'], [data-card-identity='team-500']) {
   --identity-shadow-wash: color-mix(in srgb, var(--identity-shade) 38%, transparent);
 }
 :root body .excluded-credential[data-card-identity] { overflow: hidden; }

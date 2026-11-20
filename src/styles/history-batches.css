@@ -32,10 +32,68 @@
 .inspection-batch-entry.is-pending { cursor: default; }
 .inspection-batch-summary { font-variant-numeric: tabular-nums; }
 .inspection-batch-empty { padding: 15px 8px; color: var(--text-3); font-size: 12px; }
+.drawer.run-panel { width: min(500px, 100vw); }
+.recent-batch-list .inspection-batch-entry {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-rows: 20px 52px;
+  gap: 7px 9px;
+}
+.recent-entry-status { grid-row: 1 / 3; }
+.recent-entry-status .chip {
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  width: 24px;
+  height: auto;
+  min-height: 44px;
+  padding: 7px 0;
+  line-height: 1;
+}
+.recent-batch-list .history-main { display: contents; }
+.recent-batch-list .history-title { grid-column: 2; min-width: 0; flex-wrap: nowrap; }
+.recent-batch-list .history-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-entry-result {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  min-width: 0;
+  height: 52px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.recent-batch-list .history-sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  line-height: 19px;
+}
+.recent-batch-list .history-sub .chip {
+  display: inline-block;
+  max-width: 100%;
+  height: 17px;
+  margin-right: 5px;
+  padding: 0 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 15px;
+  vertical-align: text-bottom;
+}
 @media (max-width: 540px) {
   .inspection-batch-toggle { padding: 12px 10px; gap: 7px; }
   .inspection-batch-content { padding: 7px; }
   .inspection-batch-entry { gap: 8px; padding: 10px; }
   .inspection-batch-entry .history-side { grid-column: 2 / -1; text-align: left; flex-direction: row; flex-wrap: wrap; }
   .inspection-batch-hint { display: none; }
+}
+.recent-batch-list .history-side {
+  grid-column: 3;
+  grid-row: 1;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-self: start;
+  text-align: right;
+  line-height: 16px;
 }

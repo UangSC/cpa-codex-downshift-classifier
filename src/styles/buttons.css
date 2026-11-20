@@ -51,3 +51,10 @@
   .topbar-inner { gap: 5px; }
   .topbar .nav-item { padding-inline: 7px; }
 }
+
+@media (max-width: 450px) {
+  .topbar-inner { height: auto; padding-block: 6px; justify-content: center; flex-wrap: wrap; }
+  .topbar .brand { display: none; }
+  .topbar .nav { margin-inline: 0; }
+  .topbar .topbar-actions { margin-left: 0; }
+}

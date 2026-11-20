@@ -29,7 +29,7 @@ function notifyError(title: string, error: unknown) {
 /** 概览快捷设置与设置页共用保存校验和已启用计划的配置确认。 */
 export async function saveInspectionOptions(patch: Partial<Pick<Settings, 'inspectionMethod' | 'concurrency'>>): Promise<boolean> {
   const state = useStore.getState()
-  if (state.connection !== 'connected' || state.settingsSaving || state.starting || state.settingsDraft || state.inspectionConfirmation || state.pendingSettingsConfirmation) return false
+  if (state.connection !== 'connected' || state.settingsSaving || state.starting || state.settingsDraft || state.inspectionConfirmation || state.pendingSettingsConfirmation || state.tasks.some((task) => task.status === 'running')) return false
   if ((patch.inspectionMethod === undefined || patch.inspectionMethod === state.settings.inspectionMethod)
     && (patch.concurrency === undefined || patch.concurrency.maxObjects === state.settings.concurrency.maxObjects)) return true
   state.editSettingsDraft(patch)
@@ -66,7 +66,7 @@ export async function refreshCredentialsQuota(credentialIds: string[]): Promise<
 export async function startInspection(scope: InspectionTask['scope'], targetIds?: string[]): Promise<string | null> {
   const state = useStore.getState()
   if (scope === 'scheduled') { notifyError('定时巡检由服务端管理', new Error('请在设置中开启计划并确认后台配置修改权限')); return null }
-  if (preparingInspection || state.connection !== 'connected' || state.starting || state.settingsSaving || state.pendingSettingsConfirmation || state.inspectionConfirmation || state.tasks.some((task) => task.status === 'running')) return null
+  if (preparingInspection || state.connection !== 'connected' || state.starting || state.settingsSaving || state.pendingSettingsConfirmation || state.inspectionConfirmation) return null
   const credentialIds = targetIds ? [...new Set(targetIds.map((id) => state.targets.find((target) => target.id === id)?.credentialId).filter((id): id is string => !!id))] : undefined
   if (credentialIds?.length === 0) return null
   const requested = credentialIds ?? state.credentials.map((credential) => credential.id)
@@ -75,7 +75,7 @@ export async function startInspection(scope: InspectionTask['scope'], targetIds?
     const requestKey = currentManagementKey()
     const skip = await canSkipManualReminder(state.settings, requestKey)
     const current = useStore.getState()
-    if (current.connection !== 'connected' || current.starting || current.settingsSaving || current.pendingSettingsConfirmation || current.inspectionConfirmation || current.tasks.some((task) => task.status === 'running')) return null
+    if (current.connection !== 'connected' || current.starting || current.settingsSaving || current.pendingSettingsConfirmation || current.inspectionConfirmation) return null
     const eligible = eligibleIds(requested)
     if (!eligible.length) { notifyError('没有可巡检的凭证', new Error('不参与巡检或状态不满足条件的凭证不会执行')); return null }
     const pending = confirmation(scope, eligible, requested.length)
@@ -110,7 +110,7 @@ export async function acknowledgeInspection(rememberNextTime = false): Promise<s
 
 async function submitInspection(pending: InspectionConfirmation, rememberNextTime: boolean, explicitConfirmation = true): Promise<string | null> {
   const state = useStore.getState()
-  if (state.starting || state.connection !== 'connected' || state.tasks.some((task) => task.status === 'running')) return null
+  if (state.starting || state.connection !== 'connected') return null
   const eligible = eligibleIds(pending.credentialIds)
   if (!eligible.length) { useStore.setState({ inspectionConfirmError: '这些凭证已不符合巡检条件，请取消后重新选择。' }); return null }
   if (!pending.revision) { useStore.setState({ inspectionConfirmError: '后端未提供巡检配置版本，请刷新插件后重试。' }); return null }
@@ -160,7 +160,7 @@ export async function resyncCredential(id: string) {
 export async function saveCredentialRouting(request: RoutingRequest) {
   const state = useStore.getState()
   if (state.connection !== 'connected' || state.syncing.includes(request.credentialId)) return
-  if (request.weight !== undefined) { notifyError('权重保持继承', new Error('权重继承 CPA 当前配置，插件只调整优先级')); return }
+  if (request.weight !== undefined && !state.capabilities.weightEditingEnabled) return
   useStore.setState((current) => ({ syncing: [...current.syncing, request.credentialId], mutationVersion: current.mutationVersion + 1 }))
   try { await backend.saveRouting(request); await refreshSnapshot(true) }
   catch (error) { notifyError('调度设置保存失败', error) }

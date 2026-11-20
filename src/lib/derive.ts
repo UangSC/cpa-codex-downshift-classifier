@@ -177,8 +177,21 @@ export function buildViews(
   })
 }
 
-export function sortViews(views: CredentialView[], sort: 'recent' | 'quota' | 'name'): CredentialView[] {
+export type StatusKey = 'normal' | 'downshift' | 'unknown' | 'error'
+
+export function statusOf(view: CredentialView): StatusKey {
+  if (view.attention.some((a) => a.kind === 'sync' || a.kind === 'auth' || a.kind === 'availability')) return 'error'
+  if (view.verdict === 'normal') return 'normal'
+  if (view.verdict === 'downshift') return 'downshift'
+  return 'unknown'
+}
+
+export function sortViews(views: CredentialView[], sort: 'status' | 'recent' | 'quota' | 'name'): CredentialView[] {
   const copy = [...views]
+  if (sort === 'status') {
+    const rank = { normal: 0, unknown: 1, downshift: 2, error: 3 }
+    return copy.sort((a, b) => rank[statusOf(a)] - rank[statusOf(b)] || (a.credential.id < b.credential.id ? -1 : a.credential.id > b.credential.id ? 1 : 0))
+  }
   if (sort === 'name') return copy.sort((a, b) => a.credential.name.localeCompare(b.credential.name))
   if (sort === 'quota') {
     return copy.sort((a, b) => (lowestQuota(b.credential) ?? -1) - (lowestQuota(a.credential) ?? -1))

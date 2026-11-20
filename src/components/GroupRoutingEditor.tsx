@@ -29,7 +29,7 @@ export function GroupRoutingEditor() {
           </div>
         ))}
       </div>
-      <p className="field-hint">默认优先级为正常组 10、未分组 0、降档组 −10。优先级支持 −9999～9999；概览中的 ↺ 可恢复分组默认优先级。权重继承 CPA 当前配置，插件不会修改。</p>
+      <p className="field-hint">默认优先级为正常组 10、未分组 0、降档组 −10。优先级支持 −9999～9999；概览中的 ↺ 可恢复分组默认优先级。权重默认读取 CPA 当前配置，可在加权轮询策略下逐个编辑。</p>
     </SettingsPanel>
   )
 }

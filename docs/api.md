@@ -42,7 +42,7 @@
 
 开启或改变影响定时执行的设置时，本次提交需临时附带 `acknowledgeScheduledConfigChanges: true`；确认字段不作为页面普通设置保存。后台保存授权指纹，旧授权不能覆盖新的检测和写入规则。
 
-`PUT /routing` 接收 `{credentialId, priority?, reset?}`；`POST /sync` 接收 `{credentialId}`。权重只继承 CPA 当前值，显式权重修改会被拒绝。
+`PUT /routing` 接收 `{credentialId, priority?, weight?, reset?}`；`POST /sync` 接收 `{credentialId}`。权重默认读取 CPA 当前值，加权轮询下可显式提交 0～9999 的单凭证权重。重置仅恢复分组默认优先级。
 
 设置可能已经保存，但部分凭证同步失败；此时接口返回 409，客户端应刷新真实状态并保留设置草稿。单次设置更新不构成跨凭证事务。
 

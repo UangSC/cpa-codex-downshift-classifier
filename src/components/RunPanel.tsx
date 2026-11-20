@@ -24,7 +24,7 @@ function TaskBlock({ batch, now, open, onToggle }: { batch: HistoryBatch; now: n
       {!!done && <span>完成 {done}</span>}{!!skipped && <span>跳过 {skipped}</span>}
       {!!cancelled && <span>取消 {cancelled}</span>}{!!failed && <span>失败 {failed}</span>}
     </>}>
-    <InspectionBatchItems entries={batch.entries} now={now} onOpenDetail={openDetail} />
+    <InspectionBatchItems entries={batch.entries} now={now} onOpenDetail={openDetail} recent />
   </InspectionBatch>
 }
 
@@ -43,12 +43,12 @@ export function RunPanel() {
   const recent = tasks.filter((task) => task.id !== running?.id).slice(0, 4)
     .map((task) => batches.find((batch) => batch.task?.id === task.id)).filter((batch): batch is HistoryBatch => !!batch)
   const renderBatch = (batch: HistoryBatch) => {
-    const batchOpen = expanded[batch.id] ?? batch.task?.status === 'running'
+    const batchOpen = expanded[batch.id] ?? (running ? batch.task?.status === 'running' : batch.id === recent[0]?.id)
     return <TaskBlock key={batch.id} batch={batch} now={now} open={batchOpen}
       onToggle={() => setExpanded((current) => ({ ...current, [batch.id]: !batchOpen }))} />
   }
 
-  return <Drawer open={open} onClose={() => setOpen(false)} title="巡检任务" sub={running ?
+  return <Drawer className="run-panel" open={open} onClose={() => { setExpanded({}); setOpen(false) }} title="巡检任务" sub={running ?
     running.items.filter((item) => ['done', 'skipped', 'cancelled', 'failed'].includes(item.state)).length + ' / ' + running.items.length + ' 个凭证已处理' :
     tasks.length ? '最近 ' + tasks.length + ' 批巡检' : '还没有执行过巡检'}
     head={running ? <button type="button" className="btn btn-sm btn-danger" disabled={!connected} onClick={() => cancelTask(running.id)}><Icon.Stop />停止</button> : undefined}>

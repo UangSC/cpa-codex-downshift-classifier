@@ -8,9 +8,9 @@ import { APIError } from '../api/plugin'
 import { needsScheduledConsent, sameInspectionRisk } from '../lib/inspectionConsent'
 
 export type VerdictFilter = 'all' | 'normal' | 'downshift' | 'uncertain' | 'untested' | 'attention'
-export type SortKey = 'recent' | 'quota' | 'name'
-export type TabKey = 'overview' | 'history' | 'settings'
-export interface Filters { search: string; verdict: VerdictFilter; sort: SortKey }
+export type SortKey = 'status' | 'recent' | 'quota' | 'name'
+export type TabKey = 'overview' | 'statistics' | 'history' | 'settings'
+export interface Filters { search: string; verdict: VerdictFilter; sort: SortKey | null }
 type ConnectionState = 'connecting' | 'connected' | 'error' | 'stopped'
 
 interface AppState {
@@ -86,7 +86,7 @@ export const useStore = create<AppState>((set, get) => ({
   credentials: [], targets: [], settings: { ...structuredClone(DEFAULT_SETTINGS), ...preferences() },
   settingsDraft: null, settingsSaving: false, pendingTab: null, tasks: [],
   capabilities: { ...EMPTY_CAPABILITIES }, connection: 'connecting', connectionError: '', authenticated: false, lastUpdatedAt: null,
-  selected: [], filters: { search: '', verdict: 'all', sort: 'recent' }, toasts: [], tab: 'overview',
+  selected: [], filters: { search: '', verdict: 'all', sort: null }, toasts: [], tab: 'overview',
   sourceDetail: '', detail: null, runPanelOpen: false, legendOpen: false, syncing: [], quotaRefreshing: [], starting: false, mutationVersion: 0,
   configChangesRevision: '', exclusionDrawerOpen: false, excluding: [],
   inspectionConfirmation: null, inspectionConfirmError: '', pendingSettingsConfirmation: null, settingsConfirmError: '',
@@ -119,7 +119,7 @@ export const useStore = create<AppState>((set, get) => ({
       settings,
       settingsDraft: get().settingsDraft ? rebaseSettingsDraft(get().settings, get().settingsDraft!, settings) : null,
       capabilities: { ...EMPTY_CAPABILITIES, ...snapshot.capabilities,
-        weightEditingEnabled: false,
+        weightEditingEnabled: snapshot.capabilities?.weightEditingEnabled === true,
         fingerprintAvailable: snapshot.capabilities?.fingerprintAvailable === true,
         availabilityKnown: snapshot.capabilities?.availabilityKnown === true },
       connection: 'connected', connectionError: '', authenticated: true, sourceDetail: snapshot.sourceDetail ?? '',

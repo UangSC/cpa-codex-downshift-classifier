@@ -12,7 +12,7 @@ import (
 )
 
 const pluginID = "cpa-codex-downshift-classifier"
-const version = "0.1.2"
+const version = "0.1.3"
 const apiPrefix = "/v0/management/plugins/" + pluginID
 const resourcePrefix = "/v0/resource/plugins/" + pluginID
 
@@ -125,5 +125,3 @@ func (p *plugin) close() {
 		p.adapter = nil
 	}
 }
-
-// CPA normalizes plugin configuration to a flat YAML map. Only three scalar fields are read.

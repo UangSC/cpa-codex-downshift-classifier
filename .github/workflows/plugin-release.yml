@@ -1,0 +1,71 @@
+name: CPA 插件发布
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: windows
+          - runner: ubuntu-22.04
+            platform: linux
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.10'
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '12.3.4'
+      - run: pnpm install --frozen-lockfile
+      - shell: pwsh
+        run: ./scripts/build.ps1
+      - name: 打包并核对标签
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/package_release.py --platform "${{ matrix.platform }}" --tag $env:RELEASE_TAG
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-${{ matrix.platform }}
+          path: build/release/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: 读取并验证版本
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          test "$TAG" = "v$version"
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: store-*
+          merge-multiple: true
+          path: build/release/
+      - name: 校验并发布两个平台的安装包
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          RELEASE_DIR: build/release/${{ steps.version.outputs.value }}
+        run: |
+          python scripts/package_release.py --checksums --tag "$TAG"
+          gh release create "$TAG" "$RELEASE_DIR"/*.zip "$RELEASE_DIR/checksums.txt" --verify-tag --generate-notes

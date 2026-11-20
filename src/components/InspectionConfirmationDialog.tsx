@@ -35,7 +35,7 @@ export function InspectionConfirmationDialog() {
   return <Modal open onClose={close} className="inspection-consent" title={isScheduled ? '确认定时巡检配置修改' : '巡检将修改凭证配置'}
     sub={isScheduled ? '保存计划前，请了解后续后台巡检的配置写入行为' : '确认后才会开始执行本次巡检'}
     footer={<><button type="button" className="btn" disabled={busy} onClick={close}>取消</button><span className="spacer" />
-      <button type="button" className="btn btn-primary" disabled={busy || connection !== 'connected' || running} onClick={() => {
+      <button type="button" className="btn btn-primary" disabled={busy || connection !== 'connected' || (isScheduled && running)} onClick={() => {
         if (isScheduled) void useStore.getState().saveSettingsDraft(true)
         else void acknowledgeInspection(rememberNextTime)
       }}>{busy ? '正在提交…' : '我已知晓'}</button></>}>

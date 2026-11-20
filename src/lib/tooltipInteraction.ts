@@ -1,8 +1,8 @@
-export const MIN_TOOLTIP_DELAY_MS = 3000
+export const DEFAULT_TOOLTIP_DELAY_MS = 3000
 
 /** 每次新的悬浮都从完整等待开始；移出、关闭和卸载可取消尚未显示的气泡。 */
-export function scheduleTooltipOpening(open: () => void, requestedDelay = MIN_TOOLTIP_DELAY_MS): () => void {
-  const delay = Number.isFinite(requestedDelay) ? Math.max(MIN_TOOLTIP_DELAY_MS, requestedDelay) : MIN_TOOLTIP_DELAY_MS
+export function scheduleTooltipOpening(open: () => void, requestedDelay = DEFAULT_TOOLTIP_DELAY_MS): () => void {
+  const delay = Number.isFinite(requestedDelay) && requestedDelay > 0 ? requestedDelay : DEFAULT_TOOLTIP_DELAY_MS
   const timer = setTimeout(open, delay)
   return () => clearTimeout(timer)
 }

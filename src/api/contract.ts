@@ -46,7 +46,7 @@ export interface StartChecksRequest {
   configChangesRevision: string
 }
 export interface StartChecksResponse { taskId: string }
-/** weight 仅保留旧调用兼容，正式接口会拒绝修改继承权重。 */
+/** weight 在 CPA 使用加权轮询策略时可单独编辑。 */
 export interface RoutingRequest { credentialId: string; priority?: number; weight?: number; reset?: boolean }
 export interface SyncRequest { credentialId: string }
 export interface ExclusionRequest { credentialIds: string[]; excluded: boolean }
